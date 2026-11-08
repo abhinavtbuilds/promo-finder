@@ -1,8 +1,9 @@
-data/
+data/*
+!data/sample/
 outputs/
+raw_outputs.zip
+.DS_Store
 __pycache__/
 *.pyc
 .env
-raw_outputs.zip
-.DS_Store
 .venv/

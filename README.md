@@ -3,7 +3,15 @@
 Reads a folder of timestamped screenplays and returns a ranked list of promos: episode(s), start/end of
 every segment, the hook, the cliffhanger and one line on why it works.
 
-## Run it
+## Try it in one command (no API key, no Kuku data)
+
+```bash
+pip install -r requirements.txt && python -m promo_finder.pipeline --input data/sample --out outputs/sample --mode rules
+```
+`data/sample/` is a two-episode show I invented in Kuku's screenplay format, so anyone can run the tool and see
+the input shape. Output lands in `outputs/sample/` (`posting_plan.md` is the one to read first).
+
+## Run it on a real show
 
 ```bash
 pip install -r requirements.txt

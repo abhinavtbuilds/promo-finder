@@ -1,0 +1,130 @@
+EPISODE NUMBER: Episode 1
+EPISODE LOGLINE: On her first day as head chef, Mira finds the restaurant's star dish was stolen from her late father's notebook, and the owner knows it.
+CONTINUITY NOTES: Invented sample show for testing Promo Finder. Establishes Mira, the owner Dorian, and the missing notebook.
+
+--- SCRIPT START ---
+
+SCENE 01
+Scene heading: INT. RESTAURANT KITCHEN – NIGHT
+Scene start: 00:00.00
+Scene end: 00:58.00
+
+Actions and dialogue:
+
+**CAMERA:**
+Start: (00:00.00) | End: (00:03.50)
+Slow push in on a steel pass crowded with plates. Mira ties her apron, reading the menu card.
+
+**ACTION:**
+Start: (00:00.50) | End: (00:03.50)
+Mira stops. Her thumb rests on the words "Dorian's Saffron Broth".
+
+**CAMERA:**
+Start: (00:03.50) | End: (00:06.00)
+Close on Mira's face as her jaw tightens.
+
+**MIRA (Quiet, Shaken):**
+Start: (00:03.80) | End: (00:05.80)
+"That's my father's recipe."
+
+**CAMERA:**
+Start: (00:06.00) | End: (00:09.50)
+Medium shot. Dorian enters through the swing door, immaculate suit, easy smile.
+
+**DORIAN (Warm, Dismissive):**
+Start: (00:06.40) | End: (00:09.20)
+"Everyone's recipe is someone's recipe, chef. Plate it."
+
+**CAMERA:**
+Start: (00:09.50) | End: (00:12.80)
+Two-shot across the pass, Mira and Dorian face to face.
+
+**MIRA (Firm):**
+Start: (00:09.80) | End: (00:12.50)
+"He wrote it the week before he died. In a notebook that went missing."
+
+**CAMERA:**
+Start: (00:12.80) | End: (00:15.00)
+Dorian's smile does not move. His eyes do.
+
+**DORIAN (Cold):**
+Start: (00:13.00) | End: (00:14.80)
+"Careful."
+
+**SOUND FX:**
+Start: (00:15.00) | End: (00:16.00)
+A pan clatters to the floor somewhere behind them.
+
+**CAMERA:**
+Start: (00:16.00) | End: (00:20.00)
+Wide shot of the kitchen. Every cook has stopped working to watch.
+
+**ACTION:**
+Start: (00:16.50) | End: (00:19.80)
+A young line cook, Tej, looks from Mira to Dorian and quietly slides a drawer shut.
+
+**CAMERA:**
+Start: (00:20.00) | End: (00:24.00)
+Close on Dorian, leaning in.
+
+**DORIAN (Low, Threatening):**
+Start: (00:20.30) | End: (00:23.80)
+"You need this job more than I need a chef. Plate the broth."
+
+**CAMERA:**
+Start: (00:24.00) | End: (00:28.50)
+Mira picks up the ladle. Holds it. Sets it down.
+
+**MIRA (Steady):**
+Start: (00:25.00) | End: (00:28.20)
+"Not until you tell me where the notebook is."
+
+**CAMERA:**
+Start: (00:28.50) | End: (00:33.00)
+Tracking shot as Dorian walks the length of the pass, dragging a finger along the steel.
+
+**DORIAN (Amused):**
+Start: (00:29.00) | End: (00:32.80)
+"What notebook? Your father cooked from memory. Everyone knows that."
+
+**CAMERA:**
+Start: (00:33.00) | End: (00:36.50)
+Close on Tej's hand resting on the drawer he closed.
+
+**ACTION:**
+Start: (00:33.20) | End: (00:36.30)
+Tej swallows hard and looks away from Mira.
+
+**CAMERA:**
+Start: (00:36.50) | End: (00:41.00)
+Medium shot. Mira unties her apron and drops it on the pass.
+
+**MIRA (Quiet, Dangerous):**
+Start: (00:37.00) | End: (00:40.80)
+"Then you won't mind if I ask the health inspector who wrote your menu."
+
+**CAMERA:**
+Start: (00:41.00) | End: (00:45.00)
+Dorian stops walking. Slowly turns.
+
+**DORIAN (Icy):**
+Start: (00:41.50) | End: (00:44.60)
+"Say that again."
+
+**CAMERA:**
+Start: (00:45.00) | End: (00:50.00)
+Extreme close-up on Mira as she opens her mouth to answer.
+
+**SOUND FX:**
+Start: (00:50.00) | End: (00:52.00)
+The kitchen phone rings, loud and sudden.
+
+**CAMERA:**
+Start: (00:52.00) | End: (00:58.00)
+Everyone looks at the phone. Dorian picks it up, listens, and his face goes white.
+
+**DORIAN (Barely audible):**
+Start: (00:55.00) | End: (00:57.60)
+"He's alive?"
+
+--- SCRIPT END ---

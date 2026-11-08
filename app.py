@@ -52,6 +52,8 @@ tab_run, tab_review = st.tabs(["1 · Run", "2 · Review results"])
 with tab_run:
     files = st.file_uploader("Episode screenplays (.txt files, or one .zip)", type=["txt", "zip"],
                              accept_multiple_files=True)
+    use_sample = st.checkbox("No screenplays handy? Use the built-in sample show (2 invented episodes)",
+                             value=False, disabled=bool(files))
     c1, c2 = st.columns(2)
     mode = c1.radio("Mode", ["rules", "llm"], horizontal=True,
                     format_func=lambda m: {"rules": "Rules only (no API, ~20s)",
@@ -79,11 +81,11 @@ with tab_run:
         llm_cfg["min_interval_s"] = c2.number_input("Seconds between calls (free tiers need ~4)", 0.0, 30.0,
                                                     float(base_cfg["llm"]["min_interval_s"]))
 
-    if st.button("▶ Find promos", type="primary", disabled=not files):
+    if st.button("▶ Find promos", type="primary", disabled=not (files or use_sample)):
         if mode == "llm" and not llm_cfg.get("api_key") and "localhost" not in llm_cfg.get("base_url", ""):
             st.error("Enter an API key, or use Rules only.")
             st.stop()
-        eps_dir = save_uploads(files)
+        eps_dir = save_uploads(files) if files else ROOT / "data" / "sample"
         n = len(list(eps_dir.glob("*.txt")))
         if not n:
             st.error("No .txt screenplays found in the upload.")

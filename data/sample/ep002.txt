@@ -1,0 +1,106 @@
+EPISODE NUMBER: Episode 2
+EPISODE LOGLINE: Mira learns the caller was her father's old sous-chef, who claims the notebook was never lost, it was sold.
+CONTINUITY NOTES: Invented sample show for testing Promo Finder. Follows directly from the phone call in Episode 1.
+
+--- SCRIPT START ---
+
+SCENE 01
+Scene heading: INT. RESTAURANT ALLEY – NIGHT
+Scene start: 00:00.00
+Scene end: 00:52.00
+
+Actions and dialogue:
+
+**CAMERA:**
+Start: (00:00.00) | End: (00:04.00)
+Handheld. Mira bursts out of the back door into the rain. Tej follows.
+
+**TEJ (Urgent):**
+Start: (00:00.80) | End: (00:03.60)
+"Chef, wait. I know who called."
+
+**CAMERA:**
+Start: (00:04.00) | End: (00:07.50)
+Mira spins round, soaked, furious.
+
+**MIRA (Sharp):**
+Start: (00:04.30) | End: (00:07.20)
+"You knew about the drawer. You've known all along."
+
+**CAMERA:**
+Start: (00:07.50) | End: (00:12.00)
+Close on Tej, rain running off his face.
+
+**TEJ (Ashamed):**
+Start: (00:08.00) | End: (00:11.60)
+"I found the notebook the night your father died. Dorian paid me to forget it."
+
+**CAMERA:**
+Start: (00:12.00) | End: (00:16.00)
+Two-shot. Mira steps in close.
+
+**MIRA (Shaking):**
+Start: (00:12.40) | End: (00:15.70)
+"Paid you with what? He doesn't own this place. He never did."
+
+**CAMERA:**
+Start: (00:16.00) | End: (00:20.50)
+Tej pulls a folded photocopy from his jacket and holds it out.
+
+**TEJ (Quiet):**
+Start: (00:16.50) | End: (00:20.20)
+"That's what the caller said too. The notebook was sold. To someone with your surname."
+
+**CAMERA:**
+Start: (00:20.50) | End: (00:25.00)
+Extreme close-up on the photocopy: a signature at the bottom of a bill of sale.
+
+**ACTION:**
+Start: (00:21.00) | End: (00:24.80)
+Mira's hand begins to tremble as she reads the name.
+
+**MIRA (Whisper):**
+Start: (00:25.00) | End: (00:27.50)
+"That's my mother's handwriting."
+
+**CAMERA:**
+Start: (00:27.50) | End: (00:31.00)
+The back door opens behind them. Light spills into the alley.
+
+**DORIAN (O.S.) (Calm):**
+Start: (00:28.00) | End: (00:30.80)
+"I did tell you to be careful."
+
+**CAMERA:**
+Start: (00:31.00) | End: (00:35.50)
+Mira and Tej turn. Dorian stands in the doorway holding the kitchen phone, cord cut.
+
+**DORIAN (Soft):**
+Start: (00:31.80) | End: (00:35.20)
+"Your father's friend won't be calling again tonight."
+
+**CAMERA:**
+Start: (00:35.50) | End: (00:40.00)
+Close on Mira, fear giving way to anger.
+
+**MIRA (Hard):**
+Start: (00:36.00) | End: (00:39.70)
+"What did you do to him?"
+
+**CAMERA:**
+Start: (00:40.00) | End: (00:45.00)
+Dorian steps into the rain and lets the door swing shut behind him.
+
+**DORIAN (Pleasant):**
+Start: (00:40.50) | End: (00:44.80)
+"Nothing yet. That depends on what you do with that piece of paper."
+
+**CAMERA:**
+Start: (00:45.00) | End: (00:52.00)
+Slow push in on the photocopy in Mira's fist as she makes a decision we cannot yet read.
+
+**SOUND FX:**
+Start: (00:49.00) | End: (00:52.00)
+Police siren, distant, growing closer.
+
+--- SCRIPT END ---
