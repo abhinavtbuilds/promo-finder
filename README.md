@@ -40,6 +40,11 @@ python -m promo_finder.check --run outputs/llm
 LLM_KEY=gsk_... python -m promo_finder.pipeline --config configs/groq_free.yaml --out outputs/llm_groq --mode llm --limit 10
 python -m promo_finder.evaluate --run outputs/llm_groq --gold eval/gold.yaml --other outputs/llm --max-episode 10
 
+# 7) Experiment: swap only the judge for TypeSafe's Jev (yes/no probabilities instead of 1-10 scores)
+export JEV_KEY=...        # TypeSafe API key
+python -m promo_finder.jev_rejudge --run outputs/llm --out outputs/llm_jev
+python -m promo_finder.evaluate --run outputs/llm_jev --gold eval/gold.yaml --other outputs/llm
+
 # tests (no API key needed; uses a fake model)
 python tests/test_pipeline.py
 ```
