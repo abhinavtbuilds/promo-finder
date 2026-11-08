@@ -1,0 +1,58 @@
+# Hand-labelled promos to post. DRAFT by Claude from reading the scripts - Harsh to review:
+# delete any you wouldn't post, add your own, adjust times. These are the ground truth for evaluate.py.
+- episode: 1
+  start: '00:33.70'
+  end: '01:03.00'
+  note: 'Jilted at the altar: groom is marrying her sister'
+- episode: 2
+  start: '00:00.00'
+  end: '00:27.60'
+  note: '''I cannot marry you... you are far too plain'''
+- episode: 3
+  start: '01:00.00'
+  end: '01:28.10'
+  note: Guards drag her out; scarred stranger drops a guard
+- episode: 3
+  start: '01:59.20'
+  end: '02:25.75'
+  note: Stranger kneels and proposes to the jilted bride
+- episode: 4
+  start: '01:50.00'
+  end: '02:14.80'
+  note: Marries the 'penniless nobody', instantly disowned
+- episode: 5
+  start: '00:41.50'
+  end: '01:09.00'
+  note: Stepmother throws her dead mother's book in the mud
+- episode: 11
+  start: '01:21.30'
+  end: '01:52.75'
+  note: Pocket watch planted in husband's coat
+- episode: 12
+  start: '00:43.70'
+  end: '01:09.50'
+  note: '''I want to see you crawl'' - thorns or the gallows'
+- episode: 13
+  start: '00:45.80'
+  end: '01:29.00'
+  note: Crawls barehanded through frozen thorns
+- episode: 15
+  start: '00:44.20'
+  end: '01:26.00'
+  note: Thugs shove her, wreck garden; husband arrives
+- episode: 18
+  start: '00:52.50'
+  end: '01:26.50'
+  note: Runs back into the fire for the book; beam splits
+- episode: 24
+  start: '00:12.20'
+  end: '00:43.00'
+  note: Disguised as a maid, whipped with a riding crop
+- episode: 32
+  start: '01:59.50'
+  end: '02:34.38'
+  note: Chained, she out-talks her captor; red-hot iron at her eye
+- episode: 41
+  start: '00:39.80'
+  end: '01:32.00'
+  note: Paraded in chains at enemy's wedding; doors explode

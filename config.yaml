@@ -1,0 +1,28 @@
+# --- model: swap here, no code changes ---
+llm:
+  provider: openai_compatible
+  base_url: https://api.x.ai/v1
+  model: grok-4.3
+  api_key_env: LLM_KEY
+  temperature: 0.2
+  min_interval_s: 1.0
+
+# Other options (provider: gemini | openai_compatible):
+#   Gemini:  provider: gemini, model: gemini-flash-latest, api_key_env: GEMINI_API_KEY
+#   Groq:    base_url: https://api.groq.com/openai/v1, model: llama-3.3-70b-versatile
+#   Ollama:  base_url: http://localhost:11434/v1, model: qwen2.5:14b, api_key_env: NONE
+
+# --- pipeline ---
+shortlist_per_episode: 5
+max_promos_per_episode: 3
+stitched_candidates: 6
+judge_batch: 6
+post_first_n: 10
+report_top: 15
+
+# --- ranking weights (cold-viewer scores, 1-10) ---
+weights:
+  hook: 0.40
+  cliffhanger: 0.35
+  clarity: 0.25
+  rule_blend: 0.15

@@ -1,0 +1,8 @@
+data/
+outputs/
+__pycache__/
+*.pyc
+.env
+raw_outputs.zip
+.DS_Store
+.venv/
