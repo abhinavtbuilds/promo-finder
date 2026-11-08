@@ -110,6 +110,10 @@ with tab_run:
                 if p.is_file():
                     z.write(p, p.relative_to(out))
         d3.download_button("Everything (raw outputs .zip)", buf.getvalue(), "raw_outputs.zip")
+        plan = out / "posting_plan.md"
+        if plan.exists():
+            with st.expander("Posting plan — what to post first, what to hold back", expanded=True):
+                st.markdown(plan.read_text())
 
     with st.expander("How it works"):
         st.markdown((ROOT / "README.md").read_text().split("## How it works", 1)[-1].split("## Outputs", 1)[0])

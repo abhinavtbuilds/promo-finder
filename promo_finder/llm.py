@@ -12,7 +12,7 @@ import json
 import os
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import requests
 
@@ -27,6 +27,7 @@ class LLMConfig:
     temperature: float = 0.2
     max_retries: int = 4
     min_interval_s: float = 4.0           # crude rate limiting for free tiers
+    extra: dict = field(default_factory=dict)  # provider-specific body fields, e.g. {reasoning_effort: low}
 
 
 class LLMClient:
@@ -52,8 +53,10 @@ class LLMClient:
                 code = e.response.status_code if e.response is not None else 0
                 detail = (e.response.text[:300] if e.response is not None else "")
                 err = f"HTTP {code}: {detail}"
-                if code in (400, 401, 403, 404):  # wrong key / model name: retrying won't help
+                retry_400 = code == 400 and "json_validate_failed" in detail  # model ran out before valid JSON
+                if code in (400, 401, 403, 404) and not retry_400:  # wrong key / model name: retrying won't help
                     break
+                print(f"    (HTTP {code}, retry {attempt + 1}/{self.cfg.max_retries})")
                 time.sleep(min(60, 5 * 2 ** attempt))
             except (requests.Timeout, requests.ConnectionError) as e:  # slow or dropped call: just retry
                 err = f"network: {e.__class__.__name__}"
@@ -106,6 +109,7 @@ class LLMClient:
             "temperature": self.cfg.temperature,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "response_format": {"type": "json_object"},
+            **self.cfg.extra,
         }
         r = requests.post(f"{base}/chat/completions", headers=headers, json=body, timeout=300)
         if r.status_code == 400 and "response_format" in r.text:  # some servers lack JSON mode

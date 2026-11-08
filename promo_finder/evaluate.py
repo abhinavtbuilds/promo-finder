@@ -59,15 +59,20 @@ def main():
     ap.add_argument("--run", required=True)
     ap.add_argument("--gold")
     ap.add_argument("--other", help="second run to measure agreement with")
+    ap.add_argument("--max-episode", type=int, default=0,
+                    help="only compare promos/gold from episodes <= N (for partial runs, e.g. --limit 10)")
     a = ap.parse_args()
-    run = load_run(a.run)
+    keep = lambda ps: [p for p in ps if not a.max_episode or max(e for e, _, _ in segs(p)) <= a.max_episode]
+    run = keep(load_run(a.run))
     if a.gold:
-        print(json.dumps(evaluate(run, load_gold(a.gold)), indent=2))
+        gold = [g for g in load_gold(a.gold) if not a.max_episode or g[0][0] <= a.max_episode]
+        print(f"{len(run)} promos vs {len(gold)} gold labels" + (f" (episodes <= {a.max_episode})" if a.max_episode else ""))
+        print(json.dumps(evaluate(run, gold), indent=2))
     if a.other:
-        other = [segs(p) for p in load_run(a.other)]
-        for k in (10, 20):
+        other = [segs(p) for p in keep(load_run(a.other))]
+        for k in (5, 10, 20):
             agree = sum(any(overlap(segs(p), o) >= 0.5 for o in other[:k]) for p in run[:k])
-            print(f"top-{k} agreement with {a.other}: {agree}/{k}")
+            print(f"top-{k} agreement with {a.other}: {agree}/{min(k, len(run))}")
 
 
 if __name__ == "__main__":

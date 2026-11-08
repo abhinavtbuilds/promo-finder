@@ -11,9 +11,11 @@ pip install -r requirements.txt
 # 1) No-API baseline (rules only) - runs anywhere in ~20s
 python -m promo_finder.pipeline --input data/episodes --out outputs/rules_baseline --mode rules
 
-# 2) Full pipeline with an LLM (free Gemini key from Google AI Studio)
-export LLM_KEY=...        # key for the provider in config.yaml (xAI Grok by default)
+# 2) Full pipeline with an LLM. The provider/model is set in config.yaml (xAI Grok by default);
+#    ready-made free-tier configs are in configs/ (Groq, OpenRouter, Gemini, local Ollama).
+export LLM_KEY=...        # key for whichever provider the config names
 python -m promo_finder.pipeline --input data/episodes --out outputs/llm --mode llm
+#    quick demo or free-tier slice: add  --limit 10  (first 10 episodes)
 
 # 3) Review / approve picks
 streamlit run app.py
@@ -24,6 +26,10 @@ python -m promo_finder.evaluate --run outputs/llm --gold eval/gold.yaml --other 
 # 5) Deterministic checks on any run (length, order, real timestamps, no mid-line cuts, duplicates)
 python -m promo_finder.check --run outputs/llm
 
+# 6) Swap the model and compare: same code, different brain
+LLM_KEY=gsk_... python -m promo_finder.pipeline --config configs/groq_free.yaml --out outputs/llm_groq --mode llm --limit 10
+python -m promo_finder.evaluate --run outputs/llm_groq --gold eval/gold.yaml --other outputs/llm --max-episode 10
+
 # tests (no API key needed; uses a fake model)
 python tests/test_pipeline.py
 ```
@@ -32,10 +38,12 @@ New show? Put its episode `.txt` files in a folder and pass `--input that/folder
 
 ## Swap the model
 
-Edit `config.yaml` only. `provider: gemini` or `provider: openai_compatible` (OpenAI, Groq, OpenRouter,
-Ollama, vLLM, or any OpenAI-format endpoint Kuku provides: set `base_url`, `model`, `api_key_env`).
-LLM responses are cached in `<out>/raw_llm/` keyed by model + prompt, so re-runs are free and every raw
-response is kept for audit.
+Edit `config.yaml` only, or pass `--config configs/<provider>.yaml`. `provider: gemini` or
+`provider: openai_compatible` (OpenAI, Groq, OpenRouter, Ollama, vLLM, or any OpenAI-format endpoint Kuku
+provides: set `base_url`, `model`, `api_key_env`). Prompts and code do not change.
+LLM responses are cached in `<out>/raw_llm/` keyed by model + prompt hash, so re-runs are free and every raw
+response is kept for audit. The cache stores responses only, never the screenplay, so raw outputs can be
+shared without sharing the show.
 
 ## How it works
 
@@ -58,8 +66,9 @@ Formats: Kuku's block format, or a plain `[mm:ss] NAME: line` format (one event 
 Prompts: `prompts/editor.md`, `prompts/cold_viewer.md`.
 
 ## Outputs (`outputs/<run>/`)
-`promos.json` (everything, incl. judge scores and rule features), `promos.csv`, `report.md` (top 15 with
-script excerpts), `raw_llm/` (unedited model responses), `decisions.csv` (editor verdicts).
+`promos.json` (everything, incl. judge scores and rule features), `promos.csv`, `posting_plan.md` (what to
+post first with caption hooks, what to hold back and why), `report.md` (top 15 with script excerpts),
+`raw_llm/` (unedited model responses), `check_report.csv` (deterministic checks), `decisions.csv` (editor verdicts).
 
 ## Confidentiality
 `data/` and `outputs/` are git-ignored: the screenplays are Kuku's and must not be published.

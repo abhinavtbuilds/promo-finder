@@ -64,9 +64,16 @@ class Cache:
         h = hashlib.sha1(f"{self.tag}\n{system}\n{user}".encode()).hexdigest()[:10]
         path = self.folder / f"{name}.{h}.json"
         if path.exists():
-            return json.loads(path.read_text())["response"]
+            d = json.loads(path.read_text())
+            if "prompt" in d:  # older cache files kept the full prompt (= the screenplay); strip it
+                d.pop("prompt")
+                d["prompt_sha1"] = h
+                path.write_text(json.dumps(d, indent=2))
+            return d["response"]
         resp = client.json(system, user)
-        path.write_text(json.dumps({"model": self.tag, "prompt": user, "response": resp}, indent=2))
+        # Store the response and a hash of the prompt, never the prompt itself: the screenplay is
+        # Kuku's confidential content and raw_llm/ is shared as part of the raw outputs.
+        path.write_text(json.dumps({"model": self.tag, "prompt_sha1": h, "response": resp}, indent=2))
         return resp
 
 
@@ -260,16 +267,44 @@ def write_outputs(out: Path, ordered: list[Candidate], eps_by_num, meta: dict) -
                       f"{j.get('clarity')}/10 · spoiler {j.get('spoiler')} · confusing: {j.get('confusing')}")
         md += ["", "<details><summary>Script excerpt</summary>", "", "```", clip_script(c, eps_by_num), "```", "</details>", ""]
     (out / "report.md").write_text("\n".join(md))
+    write_posting_plan(out, rows, meta)
+
+
+def write_posting_plan(out: Path, rows: list[dict], meta: dict) -> None:
+    """What an editor actually acts on: what to post this week, in order, and what to hold back and why."""
+    n = meta.get("post_first_n", 10)
+    late_from = meta.get("late_from", 0)
+    first = rows[:n]
+    held = [r for r in rows[n:] if (r["judge"].get("spoiler") == "high" and min(r["episodes"]) >= late_from)]
+    flagged = [r for r in rows[n:] if r["judge"].get("confusing")][:5]
+    seg = lambda r: " + ".join(f"Ep {s['episode']} {s['start']}–{s['end']}" for s in r["segments"])
+    cap = lambda t: re.sub(r"^\[[^\]]*\]\s*|\s*\([^)]*\)", "", t).replace(" :", ":").strip()  # drop [time] and (tone)
+    md = [f"# Posting plan — {meta['mode']} mode, {meta['episodes']} episodes", "",
+          f"Post these {len(first)} first, in this order (one per episode, no late-series spoilers). "
+          "Caption = the hook line; post one a day and watch which hooks convert.", "",
+          "| # | Clip | Length | Caption (hook) | Why this one |", "|---|---|---|---|---|"]
+    for r in first:
+        md.append(f"| {r['rank']} | {seg(r)} | {r['duration_sec']}s | {cap(r['hook'])} | {r['why']} |")
+    md += ["", f"## Hold back until the show has an audience ({len(held)})",
+           f"Clips from episode {late_from}+ that the cold viewer rated a high spoiler. Good promos, wrong week.", ""]
+    md += [f"- #{r['rank']} {seg(r)} — ends on: {r['cliffhanger']}" for r in held] or ["- none"]
+    md += ["", f"## Needs an editor's eye ({len(flagged)} shown)",
+           "The cold viewer found these confusing without context; re-cut or skip.", ""]
+    md += [f"- #{r['rank']} {seg(r)} — {r['judge'].get('confusing')}" for r in flagged] or ["- none"]
+    md += ["", "Human step: approve/reject in the review app; approvals become labels for the next run."]
+    (out / "posting_plan.md").write_text("\n".join(md))
 
 
 # ------------------------------------------------------------------ main
 def run(input_dir: str, out_dir: str, mode: str, config_path: str | None = None,
-        cfg: dict | None = None, progress=None) -> Path:
+        cfg: dict | None = None, progress=None, limit: int = 0) -> Path:
     """progress: optional callback(fraction, message) for UIs."""
     cfg = cfg or yaml.safe_load(Path(config_path or ROOT / "config.yaml").read_text())
     progress = progress or (lambda f, m: None)
     t0 = time.time()
     eps = load_show(input_dir)
+    if limit:
+        eps = eps[:limit]  # first N episodes: quick demos and free-tier runs
     eps_by_num = {e.number: e for e in eps}
     out = Path(out_dir)
     print(f"Parsed {len(eps)} episodes from {input_dir}")
@@ -316,10 +351,11 @@ def run(input_dir: str, out_dir: str, mode: str, config_path: str | None = None,
     last_ep = max((e.number for e in eps), default=1)
     late_from = int(last_ep * cfg.get("spoiler_only_after_fraction", 0.5)) + 1  # 50 eps -> ep 26 onwards
     ordered = posting_order(ranked, cfg.get("post_first_n", 10), late_from)
-    meta["seconds"] = round(time.time() - t0, 1)
+    meta.update(post_first_n=cfg.get("post_first_n", 10), late_from=late_from,
+                seconds=round(time.time() - t0, 1))
     write_outputs(out, ordered, eps_by_num, meta)
     progress(1.0, "Done")
-    print(f"Wrote {len(ordered)} promos to {out}/ (promos.json, promos.csv, report.md) in {meta['seconds']}s")
+    print(f"Wrote {len(ordered)} promos to {out}/ (promos.json, promos.csv, report.md, posting_plan.md) in {meta['seconds']}s")
     return out
 
 
@@ -329,8 +365,9 @@ def main():
     ap.add_argument("--out", default="outputs/run")
     ap.add_argument("--mode", choices=["llm", "rules"], default="llm")
     ap.add_argument("--config", default=str(ROOT / "config.yaml"))
+    ap.add_argument("--limit", type=int, default=0, help="only the first N episodes (demo / free-tier runs)")
     a = ap.parse_args()
-    run(a.input, a.out, a.mode, a.config)
+    run(a.input, a.out, a.mode, a.config, limit=a.limit)
 
 
 if __name__ == "__main__":

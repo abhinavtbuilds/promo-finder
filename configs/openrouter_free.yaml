@@ -1,0 +1,17 @@
+# Free tier: https://openrouter.ai/keys  ->  export LLM_KEY=sk-or-...
+# Free limits are tight, so run a slice:  --limit 10
+llm:
+  provider: openai_compatible
+  base_url: https://openrouter.ai/api/v1
+  model: meta-llama/llama-3.3-70b-instruct:free
+  api_key_env: LLM_KEY
+  temperature: 0.2
+  min_interval_s: 3.0
+shortlist_per_episode: 5
+max_promos_per_episode: 3
+stitched_candidates: 6
+judge_batch: 6
+post_first_n: 10
+report_top: 15
+weights: {hook: 0.40, cliffhanger: 0.35, clarity: 0.25, rule_blend: 0.15}
+llm_stitches: 6
