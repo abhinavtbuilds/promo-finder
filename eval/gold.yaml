@@ -1,54 +1,25 @@
-# Gold set for evaluate.py: 14 promos an editor would post, with start/end on real cut points.
-# Provenance: first drafted by Claude from reading the scripts, then reviewed by Abhinav Tanwar against the scripts
-# before the first LLM run. One labeller; editor approvals from the review app should replace this.
+# Gold set for evaluate.py: promos an editor would post, with start/end on real cut points.
+# Provenance: 14 candidates were first drafted by Claude from reading the scripts. Abhinav Tanwar then read every
+# clip against the script (hook in 3s / ends unresolved / clear to a stranger) and kept 6, dropped 8 (reasons below).
+# One labeller; editor approvals from the review app should replace this.
+
 - episode: 1
   start: '00:33.70'
   end: '01:03.00'
   note: 'Jilted at the altar: groom is marrying her sister'
-- episode: 2
-  start: '00:00.00'
-  end: '00:27.60'
-  note: '''I cannot marry you... you are far too plain'''
-- episode: 3
-  start: '01:00.00'
-  end: '01:28.10'
-  note: Guards drag her out; scarred stranger drops a guard
-- episode: 3
-  start: '01:59.20'
-  end: '02:25.75'
-  note: Stranger kneels and proposes to the jilted bride
-- episode: 4
-  start: '01:50.00'
-  end: '02:14.80'
-  note: Marries the 'penniless nobody', instantly disowned
-- episode: 5
-  start: '00:41.50'
-  end: '01:09.00'
-  note: Stepmother throws her dead mother's book in the mud
 - episode: 11
   start: '01:21.30'
   end: '01:52.75'
   note: Pocket watch planted in husband's coat
-- episode: 12
-  start: '00:43.70'
-  end: '01:09.50'
-  note: '''I want to see you crawl'' - thorns or the gallows'
 - episode: 13
   start: '00:45.80'
   end: '01:29.00'
   note: Crawls barehanded through frozen thorns
-- episode: 15
-  start: '00:44.20'
-  end: '01:26.00'
-  note: Thugs shove her, wreck garden; husband arrives
-- episode: 18
-  start: '00:52.50'
-  end: '01:26.50'
-  note: Runs back into the fire for the book; beam splits
 - episode: 24
   start: '00:12.20'
   end: '00:43.00'
   note: Disguised as a maid, whipped with a riding crop
+  review: 'kept with a doubt about the ending'
 - episode: 32
   start: '01:59.50'
   end: '02:34.38'
@@ -57,3 +28,29 @@
   start: '00:39.80'
   end: '01:32.00'
   note: Paraded in chains at enemy's wedding; doors explode
+
+# Dropped in review (kept for the record; the loader ignores entries without a start time):
+- dropped: 'Ep 2 00:00.00-00:27.60'
+  note: '''I cannot marry you... you are far too plain'''
+  reason: 'ending not strong enough'
+- dropped: 'Ep 3 01:00.00-01:28.10'
+  note: Guards drag her out; scarred stranger drops a guard
+  reason: 'ending not strong enough'
+- dropped: 'Ep 3 01:59.20-02:25.75'
+  note: Stranger kneels and proposes to the jilted bride
+  reason: 'weak opening'
+- dropped: 'Ep 4 01:50.00-02:14.80'
+  note: Marries the 'penniless nobody', instantly disowned
+  reason: "weak opening (priest's blessing), ending reads as finished"
+- dropped: 'Ep 5 00:41.50-01:09.00'
+  note: Stepmother throws her dead mother's book in the mud
+  reason: 'weak opening'
+- dropped: 'Ep 12 00:43.70-01:09.50'
+  note: '''I want to see you crawl'' - thorns or the gallows'
+  reason: 'ending not strong enough'
+- dropped: 'Ep 15 00:44.20-01:26.00'
+  note: Thugs shove her, wreck garden; husband arrives
+  reason: 'ending not strong enough'
+- dropped: 'Ep 18 00:52.50-01:26.50'
+  note: Runs back into the fire for the book; beam splits
+  reason: 'weak opening (4s of a burning book before any line)'
