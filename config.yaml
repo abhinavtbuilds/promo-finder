@@ -26,3 +26,4 @@ weights:
   cliffhanger: 0.35
   clarity: 0.25
   rule_blend: 0.15
+llm_stitches: 6             # LLM-proposed cross-episode promos (llm mode)

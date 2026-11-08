@@ -24,6 +24,9 @@ class FakeClient:
 
     def json(self, system, user):
         self.calls += 1
+        if "TWO-PART" in system:
+            return {"stitches": [{"a": 0, "a_end": "00:20.00", "b": 3, "b_start": "00:30.00",
+                                  "hook": "h", "cliffhanger": "c", "why": "w"}]}
         if "promo editor" in system:
             return {"promos": [
                 {"start": "00:10.00", "end": "00:45.00", "hook": "h", "cliffhanger": "c", "why": "w", "standalone_risk": "none"},
@@ -70,6 +73,23 @@ def test_llm_path_with_fake_model(tmp_path):
     assert all(p["judge"] for p in promos), "every clip should be judged"
     assert not any(p["hook"] == "too short" for p in promos), "invalid window must be dropped"
     assert any("snapped" in " ".join(p["notes"]) for p in promos), "off-grid times should be snapped"
+    assert any(p["source"] == "llm-stitch" for p in promos), "LLM stitch should produce a validated 2-part promo"
+    for p in promos:  # every promo, stitched or not, is in story order
+        segs = [(s["episode"], s["start_sec"], s["end_sec"]) for s in p["segments"]]
+        assert all((a[0], a[2]) <= (b[0], b[1]) for a, b in zip(segs, segs[1:]))
+
+
+def test_plain_format_episode(tmp_path):
+    """A different screenplay format (one timestamped line each, no camera blocks) still yields valid promos."""
+    lines = ["EP 7", "[00:00] INT. HALL - NIGHT"]
+    t = 0
+    for i in range(40):
+        t += 2
+        lines.append(f"[00:{t:02d}] {'ANNA' if i % 2 else 'MARK'}: Line number {i}{'!' if i % 5 == 0 else '.'}")
+    (tmp_path / "ep7.txt").write_text("\n".join(lines))
+    out = pipeline.run(str(tmp_path), str(tmp_path / "out"), "rules", str(ROOT / "config.yaml"))
+    promos = json.loads((out / "promos.json").read_text())["promos"]
+    assert promos and all(20 <= p["duration_sec"] <= 60 for p in promos)
 
 
 if __name__ == "__main__":
@@ -78,4 +98,6 @@ if __name__ == "__main__":
     test_candidates_are_legal()
     with tempfile.TemporaryDirectory() as d:
         test_llm_path_with_fake_model(Path(d))
+    with tempfile.TemporaryDirectory() as d:
+        test_plain_format_episode(Path(d))
     print("all tests passed")

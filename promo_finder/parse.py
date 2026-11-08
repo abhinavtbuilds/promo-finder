@@ -148,8 +148,59 @@ def parse_episode(path: str | Path) -> Episode:
     return ep
 
 
+SIMPLE_RE = re.compile(r"^\[?\(?(\d+):(\d+(?:\.\d+)?)\)?\]?\s*[-\u2013]?\s*(.*)$")
+SPEAKER_RE = re.compile(r"^([A-Z][A-Z .'\-]{1,40}?)\s*(\(([^)]*)\))?\s*:\s*(.+)$")
+
+
+def parse_simple(path: str | Path) -> Episode:
+    """Fallback for plain formats, one event per timestamped line, e.g.
+
+        EP 12
+        [00:00] INT. PENTHOUSE - NIGHT
+        [00:03] Ethan slams the door. Lily flinches.
+        [00:05] ETHAN: You signed the divorce papers?
+
+    A line's end = the next line's start (screenplays rarely give both in this style).
+    """
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    m = re.search(r"(?:EPISODE|EP)\.?\s*(?:NUMBER\s*:\s*)?(?:Episode\s*)?(\d+)", text, re.I) or re.search(r"(\d+)", Path(path).stem)
+    ep = Episode(number=int(m.group(1)) if m else 0, logline="", continuity="")
+    raw = []
+    for line in text.splitlines():
+        lm = SIMPLE_RE.match(line.strip())
+        if lm and lm.group(3).strip():
+            raw.append((to_sec(lm.group(1), lm.group(2)), lm.group(3).strip()))
+    scene = 0
+    for i, (t, body) in enumerate(raw):
+        end = raw[i + 1][0] if i + 1 < len(raw) else t + 3.0
+        end = max(end, t + 0.5)
+        if re.match(r"^(INT|EXT|INT/EXT)[. ]", body, re.I):
+            scene += 1
+            ep.scenes.append(Scene(number=scene, heading=body, start=t, end=end))
+            continue
+        sp = SPEAKER_RE.match(body)
+        if sp and not re.match(r"^(SFX|SOUND|CAMERA|ACTION|MUSIC)\b", sp.group(1)):
+            ep.events.append(Event(ep.number, scene, "dialogue", t, end, sp.group(4).strip().strip('"'),
+                                   speaker=sp.group(1).strip(), tone=sp.group(3) or ""))
+        else:
+            kind = "sfx" if re.match(r"^(SFX|SOUND)", body, re.I) else "action"
+            ep.events.append(Event(ep.number, scene, kind, t, end, re.sub(r"^(SFX|SOUND FX|ACTION)\s*:\s*", "", body)))
+    for k, sc in enumerate(ep.scenes):  # scene ends where the next starts
+        sc.end = ep.scenes[k + 1].start if k + 1 < len(ep.scenes) else max([e.end for e in ep.events] + [sc.end])
+    return ep
+
+
+def parse_any(path: str | Path) -> Episode:
+    """Kuku's block format first; if that finds nothing, the plain one-line-per-timestamp format."""
+    ep = parse_episode(path)
+    if not ep.events:
+        ep = parse_simple(path)
+    return ep
+
+
 def load_show(folder: str | Path) -> list[Episode]:
-    eps = [parse_episode(p) for p in sorted(Path(folder).glob("*.txt"))]
+    eps = [parse_any(p) for p in sorted(Path(folder).glob("*.txt"))]
+    eps = [e for e in eps if e.events]
     return sorted(eps, key=lambda e: e.number)
 
 

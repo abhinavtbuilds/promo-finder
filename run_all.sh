@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # One command for everything that needs your machine (an LLM API key + internet).
+#   export GEMINI_API_KEY=...        (free key: https://aistudio.google.com/apikey)
 #   bash run_all.sh
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -20,6 +21,11 @@ echo "== 3/3 evaluation"
   echo "### rules baseline vs gold"; python -m promo_finder.evaluate --run outputs/rules_baseline --gold eval/gold.yaml
   echo "### LLM run vs gold";       python -m promo_finder.evaluate --run outputs/llm --gold eval/gold.yaml --other outputs/rules_baseline
 } | tee outputs/evaluation.txt
+
+echo "== deterministic checks on every promo"
+python -m promo_finder.check --run outputs/rules_baseline | tee outputs/rules_baseline/check_summary.txt
+python -m promo_finder.check --run outputs/llm | tee outputs/llm/check_summary.txt
+cp eval/spot_check.md eval/gold.yaml outputs/
 
 rm -f raw_outputs.zip && zip -qr raw_outputs.zip outputs
 echo

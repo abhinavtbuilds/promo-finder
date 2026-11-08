@@ -12,7 +12,7 @@ pip install -r requirements.txt
 python -m promo_finder.pipeline --input data/episodes --out outputs/rules_baseline --mode rules
 
 # 2) Full pipeline with an LLM (free Gemini key from Google AI Studio)
-export GEMINI_API_KEY=...
+export LLM_KEY=...        # key for the provider in config.yaml (xAI Grok by default)
 python -m promo_finder.pipeline --input data/episodes --out outputs/llm --mode llm
 
 # 3) Review / approve picks
@@ -20,6 +20,9 @@ streamlit run app.py
 
 # 4) Measure quality against your own labels (eval/gold.yaml) and vs. the baseline
 python -m promo_finder.evaluate --run outputs/llm --gold eval/gold.yaml --other outputs/rules_baseline
+
+# 5) Deterministic checks on any run (length, order, real timestamps, no mid-line cuts, duplicates)
+python -m promo_finder.check --run outputs/llm
 
 # tests (no API key needed; uses a fake model)
 python tests/test_pipeline.py
@@ -46,7 +49,11 @@ response is kept for audit.
 | 6. Rank | code | weighted score (weights in `config.yaml`), then posting order: one promo per episode in the first 10, no high-spoiler clips first |
 | 7. Review | human | editor approves/rejects in `app.py`; approvals become evaluation labels |
 
-Also proposes a few **stitched** promos (strong hook moment + the ending of the same/next episode).
+Cross-episode promos: in LLM mode a second LLM pass (`prompts/stitcher.md`) proposes two-part promos (an opening
+from one clip + the ending of a later one) because joins need story context; code validates order, cut points and
+length. Rules mode uses a simple rule-based stitcher. Duplicates (>50% shared footage) are dropped in code.
+
+Formats: Kuku's block format, or a plain `[mm:ss] NAME: line` format (one event per line, no camera blocks).
 
 Prompts: `prompts/editor.md`, `prompts/cold_viewer.md`.
 

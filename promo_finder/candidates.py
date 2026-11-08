@@ -87,6 +87,8 @@ class Candidate:
 def cut_points(ep: Episode) -> tuple[list[float], list[float]]:
     """Legal start/end times: shot boundaries that don't slice a spoken line."""
     shots = [e for e in ep.events if e.kind == "camera"]
+    if not shots:  # formats without camera blocks: any line/action boundary is a cut point
+        shots = [e for e in ep.events if e.kind in ("dialogue", "action", "sfx")]
     dialog = [e for e in ep.events if e.kind == "dialogue"]
     starts = sorted({e.start for e in shots} | {0.0})
     ends = sorted({e.end for e in shots} | {ep.duration})

@@ -103,6 +103,47 @@ def llm_edit(ep: Episode, eps: list[Episode], hints: list[Candidate], client, ca
     return out
 
 
+def llm_stitch(picks: list[Candidate], eps_by_num, client, cache: Cache, cfg: dict) -> list[Candidate]:
+    """Pass 2 (cross-episode joins need story context, so the model proposes them; code validates)."""
+    singles = [c for c in picks if len(c.segments) == 1]
+    if len(singles) < 2:
+        return []
+    system = (ROOT / "prompts" / "stitcher.md").read_text().replace("{max_stitches}", str(cfg.get("llm_stitches", 6)))
+    lines = []
+    for i, c in enumerate(singles):
+        sg = c.segments[0]
+        lines.append(f"[{i}] Ep {sg.episode} {fmt(sg.start)}-{fmt(sg.end)} | hook: {c.hook_text[:160]} | "
+                     f"cliffhanger: {c.cliff_text[:160]}")
+    resp = cache.get_or_call("stitcher", client, system, "CLIPS (story order):\n" + "\n".join(lines))
+    out = []
+    for st in (resp.get("stitches", []) if isinstance(resp, dict) else []):
+        try:
+            A, B = singles[int(st["a"])], singles[int(st["b"])]
+        except (KeyError, ValueError, IndexError, TypeError):
+            continue
+        sa, sb = A.segments[0], B.segments[0]
+        ea, eb = eps_by_num[sa.episode], eps_by_num[sb.episode]
+        a_end_req, b_start_req = to_sec(st.get("a_end")), to_sec(st.get("b_start"))
+        if a_end_req is None or b_start_req is None:
+            continue
+        _, a_ends = cut_points(ea)
+        b_starts, _ = cut_points(eb)
+        a_end = min((t for t in a_ends if sa.start + 6 <= t <= sa.end), key=lambda t: abs(t - a_end_req), default=None)
+        b_start = min((t for t in b_starts if sb.start <= t < sb.end - 5), key=lambda t: abs(t - b_start_req), default=None)
+        if a_end is None or b_start is None:
+            continue
+        segs = [Segment(sa.episode, sa.start, a_end), Segment(sb.episode, b_start, sb.end)]
+        total = sum(x.duration for x in segs)
+        if not (MIN_LEN <= total <= MAX_LEN) or (sb.episode, b_start) <= (sa.episode, a_end):
+            print(f"  stitch {st.get('a')}+{st.get('b')}: dropped (length {total:.0f}s or order)")
+            continue
+        c = Candidate(segments=segs, hook_text=st.get("hook", A.hook_text), cliff_text=st.get("cliffhanger", B.cliff_text),
+                      notes=[f"why: {st.get('why', '')}", "stitched by LLM"], source="llm-stitch")
+        c.rule_score = (A.rule_score + B.rule_score) / 2
+        out.append(c)
+    return out
+
+
 def clip_script(c: Candidate, eps_by_num: dict[int, Episode]) -> str:
     parts = []
     for i, seg in enumerate(c.segments):
@@ -234,7 +275,8 @@ def run(input_dir: str, out_dir: str, mode: str, config_path: str | None = None,
     print(f"Parsed {len(eps)} episodes from {input_dir}")
 
     shortlist = {ep.number: episode_candidates(ep, keep=cfg["shortlist_per_episode"]) for ep in eps}
-    stitches = stitched_candidates(eps, keep=cfg["stitched_candidates"]) if cfg.get("stitched_candidates") else []
+    stitches = (stitched_candidates(eps, keep=cfg["stitched_candidates"])
+                if cfg.get("stitched_candidates") and mode == "rules" else [])
 
     meta = {"mode": mode, "episodes": len(eps), "input": str(input_dir), "report_top": cfg.get("report_top", 15)}
     if mode == "rules":
@@ -250,7 +292,9 @@ def run(input_dir: str, out_dir: str, mode: str, config_path: str | None = None,
             progress(0.8 * k / len(eps), f"LLM editing episode {ep.number} ({k + 1}/{len(eps)})")
             picks = llm_edit(ep, eps, shortlist[ep.number], client, cache, cfg)
             pool += picks or shortlist[ep.number][:1]  # fall back to best rule pick if the model returns nothing
-        pool += stitches
+        progress(0.82, "LLM stitching cross-episode promos")
+        print("  stitching cross-episode promos ...")
+        pool += llm_stitch(pool, eps_by_num, client, cache, cfg)
         print(f"  cold-viewer judging {len(pool)} clips ...")
         progress(0.85, f"Cold-viewer judging {len(pool)} clips")
         llm_judge(pool, eps_by_num, client, cache, batch=cfg.get("judge_batch", 6))
@@ -261,6 +305,14 @@ def run(input_dir: str, out_dir: str, mode: str, config_path: str | None = None,
     for c in pool:
         c.final = final_score(c, cfg["weights"], max_rule)
     ranked = sorted(pool, key=lambda c: c.final, reverse=True)
+    # de-duplicate in code: drop a promo that is mostly the same footage as a higher-ranked one
+    from .candidates import _overlap
+    deduped = []
+    for c in ranked:
+        if all(_overlap(c, k) <= 0.5 for k in deduped):
+            deduped.append(c)
+    meta["dropped_duplicates"] = len(ranked) - len(deduped)
+    ranked = deduped
     last_ep = max((e.number for e in eps), default=1)
     late_from = int(last_ep * cfg.get("spoiler_only_after_fraction", 0.5)) + 1  # 50 eps -> ep 26 onwards
     ordered = posting_order(ranked, cfg.get("post_first_n", 10), late_from)
