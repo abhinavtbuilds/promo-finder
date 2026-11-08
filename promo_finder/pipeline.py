@@ -208,6 +208,19 @@ def posting_order(ranked: list[Candidate], top_n: int = 10, late_from: int = 0) 
     return first + rest
 
 
+def _first_batch_size(ordered: list[Candidate], top_n: int, late_from: int) -> int:
+    """How many leading promos satisfy the first-batch rules (one per episode, no late spoilers)."""
+    used, n = set(), 0
+    for c in ordered[:top_n]:
+        eps = {s.episode for s in c.segments}
+        spoiler = (getattr(c, "judge", None) or {}).get("spoiler") == "high" and min(eps) >= late_from
+        if eps & used or spoiler:
+            break
+        used |= eps
+        n += 1
+    return n
+
+
 def why_line(c: Candidate) -> str:
     for n in c.notes:
         if n.startswith("why:"):
@@ -278,13 +291,20 @@ def write_posting_plan(out: Path, rows: list[dict], meta: dict) -> None:
     held = [r for r in rows[n:] if (r["judge"].get("spoiler") == "high" and min(r["episodes"]) >= late_from)]
     flagged = [r for r in rows[n:] if r["judge"].get("confusing")][:5]
     seg = lambda r: " + ".join(f"Ep {s['episode']} {s['start']}–{s['end']}" for s in r["segments"])
-    cap = lambda t: re.sub(r"^\[[^\]]*\]\s*|\s*\([^)]*\)", "", t).replace(" :", ":").strip()  # drop [time] and (tone)
+    def cap(t: str) -> str:  # drop [time] and (tone); a camera/action hook is labelled, not posted as text
+        t = re.sub(r"\s*\[[^\]]*\]\s*|\s*\([^)]*\)", " ", t).replace(" :", ":").replace("  ", " ").strip()
+        if re.match(r"^(CAMERA|ACTION|SFX|SOUND|VISUAL)\b", t, re.I):
+            return "_(visual hook, write a caption)_ " + t.split(":", 1)[-1].strip()[:70]
+        return t
     md = [f"# Posting plan — {meta['mode']} mode, {meta['episodes']} episodes", "",
-          f"Post these {len(first)} first, in this order (one per episode, no late-series spoilers). "
+          f"Post these {len(first)} first, in this order: the best promo from each of {len(first)} different episodes, "
+          "no late-series spoilers. "
           "Caption = the hook line; post one a day and watch which hooks convert.", "",
           "| # | Clip | Length | Caption (hook) | Why this one |", "|---|---|---|---|---|"]
     for r in first:
         md.append(f"| {r['rank']} | {seg(r)} | {r['duration_sec']}s | {cap(r['hook'])} | {r['why']} |")
+    if len(rows) > n:
+        md += ["", f"Next in line: {len(rows) - n} more promos, ranked, in promos.csv."]
     md += ["", f"## Hold back until the show has an audience ({len(held)})",
            f"Clips from episode {late_from}+ that the cold viewer rated a high spoiler. Good promos, wrong week.", ""]
     md += [f"- #{r['rank']} {seg(r)} — ends on: {r['cliffhanger']}" for r in held] or ["- none"]
@@ -351,7 +371,8 @@ def run(input_dir: str, out_dir: str, mode: str, config_path: str | None = None,
     last_ep = max((e.number for e in eps), default=1)
     late_from = int(last_ep * cfg.get("spoiler_only_after_fraction", 0.5)) + 1  # 50 eps -> ep 26 onwards
     ordered = posting_order(ranked, cfg.get("post_first_n", 10), late_from)
-    meta.update(post_first_n=cfg.get("post_first_n", 10), late_from=late_from,
+    first_batch = _first_batch_size(ordered, cfg.get("post_first_n", 10), late_from)
+    meta.update(post_first_n=first_batch, late_from=late_from,
                 seconds=round(time.time() - t0, 1))
     write_outputs(out, ordered, eps_by_num, meta)
     progress(1.0, "Done")

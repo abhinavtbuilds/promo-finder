@@ -113,7 +113,7 @@ with tab_run:
         plan = out / "posting_plan.md"
         if plan.exists():
             with st.expander("Posting plan — what to post first, what to hold back", expanded=True):
-                st.markdown(plan.read_text())
+                st.markdown(plan.read_text().split("\n", 1)[-1].replace("\n## ", "\n#### "))
 
     with st.expander("How it works"):
         st.markdown((ROOT / "README.md").read_text().split("## How it works", 1)[-1].split("## Outputs", 1)[0])
