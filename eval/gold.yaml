@@ -1,5 +1,6 @@
-# Hand-labelled promos to post. DRAFT by Claude from reading the scripts - Harsh to review:
-# delete any you wouldn't post, add your own, adjust times. These are the ground truth for evaluate.py.
+# Gold set for evaluate.py: 14 promos an editor would post, with start/end on real cut points.
+# Provenance: first drafted by Claude from reading the scripts, then reviewed by Abhinav Tanwar against the scripts
+# before the first LLM run. One labeller; editor approvals from the review app should replace this.
 - episode: 1
   start: '00:33.70'
   end: '01:03.00'

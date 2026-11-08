@@ -1,5 +1,7 @@
 # Promo Finder — finds 20–60s promos in microdrama screenplays
 
+By **Abhinav Tanwar**, for the Kuku AI Generalist assignment (Problem 1, November 2026).
+
 Reads a folder of timestamped screenplays and returns a ranked list of promos: episode(s), start/end of
 every segment, the hook, the cliffhanger and one line on why it works.
 
@@ -42,7 +44,9 @@ python -m promo_finder.evaluate --run outputs/llm_groq --gold eval/gold.yaml --o
 python tests/test_pipeline.py
 ```
 
-New show? Put its episode `.txt` files in a folder and pass `--input that/folder`. Nothing is show-specific.
+New show? Put its episode `.txt` files in a folder and pass `--input that/folder`. No logic is episode- or
+character-specific, but the rule lexicon in `promo_finder/candidates.py` (hook words, props, settings) was tuned
+on a period drama; for a different genre it is the first thing to retune. The LLM passes carry no such tuning.
 
 ## Swap the model
 
@@ -50,8 +54,8 @@ Edit `config.yaml` only, or pass `--config configs/<provider>.yaml`. `provider: 
 `provider: openai_compatible` (OpenAI, Groq, OpenRouter, Ollama, vLLM, or any OpenAI-format endpoint Kuku
 provides: set `base_url`, `model`, `api_key_env`). Prompts and code do not change.
 LLM responses are cached in `<out>/raw_llm/` keyed by model + prompt hash, so re-runs are free and every raw
-response is kept for audit. The cache stores responses only, never the screenplay, so raw outputs can be
-shared without sharing the show.
+response is kept for audit. `raw_llm/` stores responses only, never the prompt (the screenplay). `report.md` does quote the script
+excerpt for each of the top 15 clips so a reviewer can check the picks; drop it from the zip if that matters.
 
 ## How it works
 

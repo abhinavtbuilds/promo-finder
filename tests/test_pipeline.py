@@ -13,7 +13,7 @@ from promo_finder import llm, pipeline  # noqa: E402
 from promo_finder.candidates import cut_points, episode_candidates  # noqa: E402
 from promo_finder.parse import load_show  # noqa: E402
 
-DATA = ROOT / "data" / "episodes"
+DATA = ROOT / "data" / "sample"  # invented show shipped with the repo, so tests run on a clean clone
 
 
 class FakeClient:
@@ -25,7 +25,7 @@ class FakeClient:
     def json(self, system, user):
         self.calls += 1
         if "TWO-PART" in system:
-            return {"stitches": [{"a": 0, "a_end": "00:20.00", "b": 3, "b_start": "00:30.00",
+            return {"stitches": [{"a": 0, "a_end": "00:25.00", "b": 2, "b_start": "00:38.00",
                                   "hook": "h", "cliffhanger": "c", "why": "w"}]}
         if "promo editor" in system:
             return {"promos": [

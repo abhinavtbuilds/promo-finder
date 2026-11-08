@@ -1,4 +1,4 @@
-# Manual spot-check: top 10 promos (Grok 4.3 run of 8 Nov, after dedupe + spoiler fix; ranks may shift slightly on reruns, so clips are identified by episode and time)
+# Manual spot-check by Abhinav Tanwar: top 10 promos (Grok 4.3 run of 8 Nov, after dedupe + spoiler fix; ranks may shift slightly on reruns, so clips are identified by episode and time)
 
 Each promo was read against the screenplay.
 - **Hook:** does something gripping happen in the first 3 seconds?

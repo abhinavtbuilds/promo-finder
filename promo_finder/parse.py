@@ -2,6 +2,7 @@
 
 Pure code, no AI: the format is regular, so rules are cheaper and exact.
 """
+# Author: Abhinav Tanwar — Promo Finder, Kuku AI Generalist assignment (Nov 2026)
 from __future__ import annotations
 
 import re

@@ -117,6 +117,7 @@ with tab_run:
             with st.expander("Posting plan — what to post first, what to hold back", expanded=True):
                 st.markdown(plan.read_text().split("\n", 1)[-1].replace("\n## ", "\n#### "))
 
+    st.caption("Built by Abhinav Tanwar for the Kuku AI Generalist assignment (Problem 1, Nov 2026).")
     with st.expander("How it works"):
         st.markdown((ROOT / "README.md").read_text().split("## How it works", 1)[-1].split("## Outputs", 1)[0])
 

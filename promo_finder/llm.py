@@ -6,6 +6,7 @@ Two adapters cover nearly everything:
                          or any API Kuku provides that speaks the OpenAI chat format.
 Swapping models = editing config.yaml (or env vars). No code changes.
 """
+# Author: Abhinav Tanwar — Promo Finder, Kuku AI Generalist assignment (Nov 2026)
 from __future__ import annotations
 
 import json

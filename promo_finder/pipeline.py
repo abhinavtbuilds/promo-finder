@@ -11,6 +11,7 @@ Stages
   5. cold judge     (LLM)    a "never seen the show" viewer scores each clip from the clip text ONLY
   6. rank           (code)   transparent weights + posting-order rules (diversity, spoilers)
 """
+# Author: Abhinav Tanwar — Promo Finder, Kuku AI Generalist assignment (Nov 2026)
 from __future__ import annotations
 
 import argparse
@@ -328,6 +329,9 @@ def run(input_dir: str, out_dir: str, mode: str, config_path: str | None = None,
     eps_by_num = {e.number: e for e in eps}
     out = Path(out_dir)
     print(f"Parsed {len(eps)} episodes from {input_dir}")
+    if not eps:
+        raise SystemExit("No episodes parsed. Expected Kuku's block format (**CAMERA:** / Start: (mm:ss.ss) | End: ...) "
+                         "or plain '[mm:ss] NAME: line' files. See README 'Formats'.")
 
     shortlist = {ep.number: episode_candidates(ep, keep=cfg["shortlist_per_episode"]) for ep in eps}
     stitches = (stitched_candidates(eps, keep=cfg["stitched_candidates"])
@@ -345,17 +349,32 @@ def run(input_dir: str, out_dir: str, mode: str, config_path: str | None = None,
         for k, ep in enumerate(eps):
             print(f"  editing ep {ep.number} ...")
             progress(0.8 * k / len(eps), f"LLM editing episode {ep.number} ({k + 1}/{len(eps)})")
-            picks = llm_edit(ep, eps, shortlist[ep.number], client, cache, cfg)
+            try:
+                picks = llm_edit(ep, eps, shortlist[ep.number], client, cache, cfg)
+            except RuntimeError as err:  # model/API failure: keep going with the rule picks for this episode
+                print(f"  ep {ep.number}: LLM failed ({str(err)[:80]}); using rule picks")
+                meta.setdefault("llm_failures", []).append(f"ep{ep.number}: editor")
+                picks = []
             pool += picks or shortlist[ep.number][:1]  # fall back to best rule pick if the model returns nothing
         progress(0.82, "LLM stitching cross-episode promos")
         print("  stitching cross-episode promos ...")
-        pool += llm_stitch(pool, eps_by_num, client, cache, cfg)
+        try:
+            pool += llm_stitch(pool, eps_by_num, client, cache, cfg)
+        except RuntimeError as err:
+            print(f"  stitcher: LLM failed ({str(err)[:80]}); no cross-episode promos this run")
+            meta.setdefault("llm_failures", []).append("stitcher")
         print(f"  cold-viewer judging {len(pool)} clips ...")
         progress(0.85, f"Cold-viewer judging {len(pool)} clips")
-        llm_judge(pool, eps_by_num, client, cache, batch=cfg.get("judge_batch", 6))
+        try:
+            llm_judge(pool, eps_by_num, client, cache, batch=cfg.get("judge_batch", 6))
+        except RuntimeError as err:
+            print(f"  judge: LLM failed ({str(err)[:80]}); ranking on rule scores only")
+            meta.setdefault("llm_failures", []).append("judge")
         meta.update(model=f"{lc.provider}:{lc.model}", llm_calls=client.calls,
                     tokens_in=client.tokens_in, tokens_out=client.tokens_out)
 
+    if not pool:
+        print("No legal 20-60s windows found: episodes shorter than 20s, or no timestamps parsed. Nothing to rank.")
     max_rule = max((c.rule_score for c in pool), default=1)
     for c in pool:
         c.final = final_score(c, cfg["weights"], max_rule)

@@ -4,6 +4,7 @@ Rules here are deliberately simple and explainable. They do two jobs:
  1. shortlist candidates cheaply so the LLM only reads a few per episode;
  2. act as a no-API baseline (and a sanity check on what the LLM picks).
 """
+# Author: Abhinav Tanwar — Promo Finder, Kuku AI Generalist assignment (Nov 2026)
 from __future__ import annotations
 
 import re

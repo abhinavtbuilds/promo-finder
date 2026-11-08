@@ -6,6 +6,7 @@
 A pick "hits" a gold promo if, in the same episode, the time overlap is >= 50% of the shorter clip.
 Gold labels come from a human (you, or editor approvals exported by the review app).
 """
+# Author: Abhinav Tanwar — Promo Finder, Kuku AI Generalist assignment (Nov 2026)
 from __future__ import annotations
 
 import argparse

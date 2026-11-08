@@ -28,6 +28,8 @@ echo "== 3/3 evaluation"
   echo "### rules baseline vs gold"; python -m promo_finder.evaluate --run outputs/rules_baseline --gold eval/gold.yaml
   echo "### LLM run vs gold";       python -m promo_finder.evaluate --run outputs/llm --gold eval/gold.yaml --other outputs/rules_baseline
   if [ -d outputs/llm_model2 ]; then
+    echo "### main LLM run, episodes 1-10 only (same slice as the second model)"
+    python -m promo_finder.evaluate --run outputs/llm --gold eval/gold.yaml --max-episode 10
     echo "### second model (first 10 episodes) vs gold and vs main LLM run"
     python -m promo_finder.evaluate --run outputs/llm_model2 --gold eval/gold.yaml --other outputs/llm --max-episode 10
   fi
@@ -41,5 +43,4 @@ cp eval/spot_check.md eval/gold.yaml outputs/
 
 rm -f raw_outputs.zip && zip -qr raw_outputs.zip outputs
 echo
-echo "DONE. Send Claude these two files: outputs/evaluation.txt and outputs/llm/report.md"
-echo "Upload raw_outputs.zip to Google Drive (share: anyone with the link)."
+echo "DONE. Read outputs/evaluation.txt and outputs/llm/posting_plan.md; raw_outputs.zip holds every output."
