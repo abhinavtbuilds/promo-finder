@@ -25,9 +25,16 @@ from pathlib import Path
 
 import yaml
 
-from .candidates import (MAX_LEN, MIN_LEN, Candidate, Segment, cut_points, episode_candidates,
-                         score_window, script_text, stitched_candidates)
+from .candidates import (MAX_LEN, MIN_LEN, REPLY_LINES, Candidate, Segment, cut_points,
+                         episode_candidates, score_window, script_text, stitched_candidates)
 from .parse import Episode, fmt, load_show
+
+# Import Jev support — best-effort; JEV_KEY env var is checked at runtime
+try:
+    from .jev_rejudge import jev_judge
+    _HAVE_JEV = True
+except ImportError:
+    _HAVE_JEV = False
 
 ROOT = Path(__file__).resolve().parent.parent
 TS_RE = re.compile(r"(\d+):(\d+(?:\.\d+)?)")
@@ -39,10 +46,38 @@ def to_sec(s: str) -> float | None:
 
 
 # ------------------------------------------------------------------ validation (code, not AI)
+def _first_line_is_reply(ep: Episode, t: float) -> bool:
+    """Check if the first dialogue line at or just after time t is a reply utterance."""
+    import re
+    first = next((e for e in ep.events if e.kind == "dialogue" and e.start >= t - 0.3), None)
+    if first and first.start < t + 2.0:
+        text = first.text.strip()
+        if re.match(REPLY_LINES, text, re.I):
+            return True
+        if text.startswith(("...", "…")):
+            return True
+    return False
+
+
 def snap_window(ep: Episode, start: float, end: float) -> tuple[float, float] | None:
-    """Snap LLM-proposed times to the nearest legal cut points and enforce 20-60s."""
+    """Snap LLM-proposed times to the nearest legal cut points and enforce 20-60s.
+
+    After snapping to a shot boundary, also check whether the first dialogue line
+    at that start point is a short reply (a sign we cut off the setup). If so, try
+    to nudge forward to the next valid start point.
+    """
     starts, ends = cut_points(ep)
     a = min(starts, key=lambda t: abs(t - start))
+
+    # --- Reply-avoidance nudging ---
+    # If the snapped start lands on a reply line, try the next valid start point
+    if _first_line_is_reply(ep, a):
+        candidates = sorted([s for s in starts if s > a + 2.0])
+        for nudge_a in candidates:
+            if MIN_LEN <= end - nudge_a <= MAX_LEN:
+                a = nudge_a
+                break
+
     legal_ends = [t for t in ends if MIN_LEN <= t - a <= MAX_LEN]
     if not legal_ends:
         return None
@@ -340,6 +375,50 @@ def run(input_dir: str, out_dir: str, mode: str, config_path: str | None = None,
     meta = {"mode": mode, "episodes": len(eps), "input": str(input_dir), "report_top": cfg.get("report_top", 15)}
     if mode == "rules":
         pool = [c for cs in shortlist.values() for c in cs[: cfg["max_promos_per_episode"]]] + stitches
+    elif mode == "jev":
+        if not _HAVE_JEV:
+            raise RuntimeError("Jev judge not available. Install requests: pip install requests")
+        import os as _os
+        _jev_key = _os.environ.get("JEV_KEY")
+        if not _jev_key:
+            print("  WARNING: JEV_KEY not set — falling back to rules mode for judging")
+            pool = [c for cs in shortlist.values() for c in cs[: cfg["max_promos_per_episode"]]] + stitches
+            meta["mode"] = "rules (JEV_KEY missing)"
+        else:
+            from .llm import LLMClient, LLMConfig
+            lc = LLMConfig(**cfg["llm"])
+            client = LLMClient(lc)
+            cache = Cache(out / "raw_llm", f"{lc.provider}:{lc.model}")
+            pool = []
+            for k, ep in enumerate(eps):
+                print(f"  editing ep {ep.number} ...")
+                progress(0.8 * k / len(eps), f"LLM editing episode {ep.number} ({k + 1}/{len(eps)})")
+                try:
+                    picks = llm_edit(ep, eps, shortlist[ep.number], client, cache, cfg)
+                except RuntimeError as err:
+                    print(f"  ep {ep.number}: LLM failed ({str(err)[:80]}); using rule picks")
+                    meta.setdefault("llm_failures", []).append(f"ep{ep.number}: editor")
+                    picks = []
+                pool += picks or shortlist[ep.number][:1]
+            progress(0.82, "LLM stitching cross-episode promos")
+            print("  stitching cross-episode promos ...")
+            try:
+                pool += llm_stitch(pool, eps_by_num, client, cache, cfg)
+            except RuntimeError as err:
+                print(f"  stitcher: LLM failed ({str(err)[:80]}); no cross-episode promos this run")
+                meta.setdefault("llm_failures", []).append("stitcher")
+            print(f"  Jev-judging {len(pool)} clips ...")
+            progress(0.85, f"Jev judging {len(pool)} clips")
+            _jev_cache = out / "raw_jev"
+            _jev_cache.mkdir(parents=True, exist_ok=True)
+            try:
+                jev_judge(pool, eps_by_num, _jev_key, _jev_cache, batch=cfg.get("judge_batch", 6), progress=progress)
+            except RuntimeError as err:
+                print(f"  judge: Jev failed ({str(err)[:80]}); ranking on rule scores only")
+                meta.setdefault("llm_failures", []).append("judge (Jev)")
+            meta.update(model=f"jev + {lc.provider}:{lc.model}", llm_calls=client.calls,
+                        tokens_in=client.tokens_in, tokens_out=client.tokens_out,
+                        judge_model="jev-latest")
     else:
         from .llm import LLMClient, LLMConfig
         lc = LLMConfig(**cfg["llm"])
@@ -403,7 +482,7 @@ def main():
     ap = argparse.ArgumentParser(description="Find promo clips in microdrama screenplays")
     ap.add_argument("--input", default="data/episodes", help="folder of episode .txt screenplays")
     ap.add_argument("--out", default="outputs/run")
-    ap.add_argument("--mode", choices=["llm", "rules"], default="llm")
+    ap.add_argument("--mode", choices=["llm", "rules", "jev"], default="llm")
     ap.add_argument("--config", default=str(ROOT / "config.yaml"))
     ap.add_argument("--limit", type=int, default=0, help="only the first N episodes (demo / free-tier runs)")
     a = ap.parse_args()

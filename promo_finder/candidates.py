@@ -21,11 +21,15 @@ PHYSICAL = r"slap|punch|strike|struck|shove|kick|tackl|seize|grab|drag|choke|thr
 HOT_TONE = r"furious|screaming|shouting|menacing|threatening|cruel|mocking|gloating|enraged|terrified|desperate|hysterical|venomous|vindictive|sadistic|brutal|panic|roaring|snarl|lethal|dangerous|heartbroken|sobbing|accusing|accusatory|agoniz|horror|shock|sinister|predatory"
 CALM_TONE = r"gentle|tender|soft|warm|peaceful|content|reassuring|amused|playful|teasing|fond|grateful|relieved|relief|smil|calm|quiet|reflective|nostalgic|comfort"
 CLIFF_CUES = r"cliffhanger|freeze-frame|freeze|cut to black|cuts to black|abrupt|suspense|dread|hangs|ominous|menacing hold|knife's edge"
-RESOLVED_CUES = r"fade|fades|fading|smile|relief|peaceful|embrace|safe|grateful|content|laugh"
+RESOLVED_CUES = r"fade|fades|fading|smile|relief|peaceful|embrace|safe|grateful|content|laugh|escaped|rescued|survive|survived|safe now|all right|okay|it's over"
+# Verbs/actions that signal a resolved ending (conflict resolved on screen)
+RESOLVED_ACTIONS = r"embrace|hug|walk away together|ride off|escape through|climb out|pull.*safe|help.*up|reunite|kiss|hold hands|smile at each other"
 BACKREF = r"\b(again|last time|still|after what|as before|remember|told you|the ring|the ledger|the watch)\b"
 # genre tropes that sell microdramas regardless of the show (betrayal, rejection, secret identity, rescue)
 TROPES = r"abandon|humiliat|disown|betray|plain|unworthy|beneath|divorce|marry|wedding|bride|proposal|accept my hand|one knee|pregnan|poison|witch|execut|chains|dungeon|duke|duchess|heir|the real|you're the|who are you|disguise|framed|liar|traitor|slave|maid|beggar|penniless"
 ESTABLISHING = r"establishing shot|wide shot of the (?:manor|cottage|estate)|exterior shot|tilting up toward"
+# Expanded list of reply-like utterances: 1-3 word replies that make no sense cut off from context
+REPLY_LINES = r"^(yes|no|okay|sure|fine|right|indeed|never|maybe|perhaps|i am|it is|it's me|that's him|she is|he is|so was i|so were you|not yet|not now|of course|of course not|absolutely|never mind|my lady|your grace|sir|milady|madam|this house|that man|that woman|dignity|loyalty|honor|quiet|silence|no\.{3}|yes\.{3})$"
 
 
 def _count(pattern: str, text: str) -> int:
@@ -118,8 +122,16 @@ def score_hook(ep: Episode, a: float) -> tuple[float, str]:
     first_line = next((e for e in evs if e.kind == "dialogue"), None)
     if first_line:
         s += 0.3  # someone speaks in the first 3s: viewers stop for faces + words
-        if re.fullmatch(r"(yes|no|i am|it is|so were you|not yet)\W*", first_line.text, re.I):
-            s -= 0.8  # reply to a question we never heard
+        if re.match(REPLY_LINES, first_line.text.strip(), re.I):
+            s -= 1.0  # reply to a question we never heard — viewer is lost
+        # Check if the line trails in (ellipsis start) — it's mid-conversation
+        if first_line.text.strip().startswith(("...", "…")):
+            s -= 0.6
+    # Check if the best action happens just BEFORE the clip (0-2s before start)
+    # This means the hook momentum starts at the wrong moment
+    pre_evs = [e for e in events_in(ep, max(0, a - 2.0), a) if e.kind in ("action", "sfx")]
+    if pre_evs and max(intensity(e) for e in pre_evs) > max((intensity(e) for e in evs), default=0):
+        s -= 0.6  # the real hook action was just before the clip — we started too late
     if any(re.search(ESTABLISHING, e.text, re.I) for e in evs):
         s -= 0.8
     best = max(evs, key=intensity)
@@ -142,6 +154,13 @@ def score_cliff(ep: Episode, b: float) -> tuple[float, str]:
         if re.search(HOT_TONE, last_line.tone, re.I):
             s += 0.4
     s -= 0.4 * min(_count(RESOLVED_CUES, text), 3)
+    # ** New: penalize action-based resolution **
+    # Check the very last events (last 2s): if the main action is resolved (escape, rescue, embrace),
+    # the clip has no cliffhanger
+    last_evs = [e for e in evs if b - 2.0 <= e.end <= b and e.kind in ("action", "camera")]
+    if last_evs:
+        last_text = " ".join(e.text for e in last_evs)
+        s -= 0.6 * min(_count(RESOLVED_ACTIONS, last_text), 2)
     if abs(b - ep.duration) < 0.5:
         s += 0.5  # writers design episode endings as cliffhangers
     anchor = last_line or evs[-1]
@@ -156,6 +175,22 @@ def score_standalone(ep: Episode, a: float, b: float) -> tuple[float, list[str]]
     if refs:
         s -= 0.25 * min(refs, 3)
         notes.append(f"{refs} back-reference(s) to earlier plot")
+    # ** New: penalize proper-noun character names that a stranger won't know **
+    # Known show terms (episode keywords like "duke", "duchess", "lord", "lady") are fine;
+    # specific character names like "Gerald", "Harrington", "Alexander", "Juliana" are not
+    all_dialogue_text = " ".join(e.text for e in dialog)
+    # Find capitalized words that look like character names (not at line start)
+    proper_names = re.findall(r'(?<![A-Za-z])([A-Z][a-z]{3,})(?![A-Za-z])', all_dialogue_text)
+    # Filter out title words and common words
+    title_words = {"Lord", "Lady", "Duke", "Duchess", "Sir", "Madam", "Miss", "Master",
+                   "Your", "His", "Her", "My", "Father", "Mother", "Brother", "Sister",
+                   "Doctor", "Captain", "Colonel", "Sergeant", "Inspector", "King", "Queen",
+                   "Prince", "Princess", "Count", "Countess", "God", "Heaven", "Please"}
+    named_refs = [n for n in proper_names if n not in title_words]
+    if named_refs:
+        penalty = 0.15 * min(len(named_refs), 4)
+        s -= penalty
+        notes.append(f"references character names a stranger won't know: {', '.join(sorted(set(named_refs))[:3])}")
     voiceover = sum(1 for e in dialog if e.voice)
     if voiceover >= 2:
         s -= 0.3
