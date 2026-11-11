@@ -91,19 +91,22 @@ def load_checks(run_dir: Path) -> list[dict] | None:
 
 
 def load_run_options(include_current: bool = True) -> dict[str, tuple[Path, Path]]:
-    """Build {label: (run_dir, eps_dir)} from session only.
+    """Build {label: (run_dir, eps_dir)} from session run history.
 
     Saved runs from outputs/ are NOT loaded — they contain Kuku's confidential
-    episode data and must not be shown to app visitors. Only the current session's
-    run (temp directory) and the sample data (invented episodes) are visible.
+    episode data. Only runs from the current browser session (temp directories)
+    and the sample data (invented episodes) are visible.
     """
     opts = {}
-    if include_current and ss.run_dir and Path(ss.run_dir).exists():
+    # Add all runs from this session's history (persists across tab switches)
+    for label, info in sorted(ss.run_history.items()):
+        d = Path(info["run_dir"])
+        ed = Path(info["eps_dir"])
+        if d.exists():
+            opts[label] = (d, ed)
+    # Fallback to the single most recent run for backwards compat
+    if not opts and include_current and ss.run_dir and Path(ss.run_dir).exists():
         opts["This session's run"] = (Path(ss.run_dir), Path(ss.eps_dir))
-    # Saved runs from outputs/ are NOT loaded in deployed mode (Kuku confidentiality).
-    # Uncomment for local dev:
-    # for p in sorted((ROOT / "outputs").glob("*/promos.json")):
-    #     opts[f"Saved: {p.parent.name}"] = (p.parent, ROOT / "data" / "episodes")
     return opts
 
 
