@@ -330,37 +330,64 @@ with tab_run:
         st.divider()
         lcol1, lcol2, lcol3 = st.columns(3)
         cfg_llm = base_cfg["llm"]
-        providers = ["openai_compatible", "gemini"]
-        provider = lcol1.selectbox(
-            "Provider",
-            providers,
-            index=providers.index(cfg_llm.get("provider", "openai_compatible")),
-            help="openai_compatible = xAI Grok, OpenAI, Groq, OpenRouter, Ollama, or any OpenAI-format API",
-        )
-        llm_cfg["provider"] = provider
-        same = provider == cfg_llm.get("provider")
-        default_model = cfg_llm["model"] if same else (
-            "gemini-2.5-flash" if provider == "gemini" else "grok-4.3"
-        )
-        llm_cfg["model"] = lcol1.text_input("Model", default_model)
-        if provider == "openai_compatible":
+
+        # Provider presets — each has a base_url + model hint
+        KNOWN_PROVIDERS = {
+            "xAI Grok":       ("https://api.x.ai/v1",             "grok-4.3"),
+            "OpenAI":         ("https://api.openai.com/v1",       "gpt-4o-mini"),
+            "Groq (free)":    ("https://api.groq.com/openai/v1",  "openai/gpt-oss-120b"),
+            "OpenRouter":     ("https://openrouter.ai/api/v1",    "meta-llama/llama-3.3-70b-instruct:free"),
+            "Google Gemini":  ("gemini",                           "gemini-2.5-flash"),
+            "Custom":         ("",                                 ""),
+        }
+        default_provider = "xAI Grok"
+        # Try to match the current config
+        cur_base = (cfg_llm.get("base_url") or "").rstrip("/")
+        for pname, (purl, pmodel) in KNOWN_PROVIDERS.items():
+            if purl == "gemini" and cfg_llm.get("provider") == "gemini":
+                default_provider = pname
+            elif purl and purl.rstrip("/") == cur_base:
+                default_provider = pname
+        provider_names = list(KNOWN_PROVIDERS)
+        provider_idx = provider_names.index(default_provider) if default_provider in provider_names else 0
+
+        chosen = lcol1.selectbox("Provider", provider_names, index=provider_idx,
+                                  help="Select your LLM provider, or choose 'Custom' to enter any OpenAI-compatible endpoint.")
+
+        if chosen == "Google Gemini":
+            llm_cfg["provider"] = "gemini"
+            llm_cfg["model"] = lcol1.text_input("Model", KNOWN_PROVIDERS["Google Gemini"][1])
+            key = lcol2.text_input(
+                "Gemini API key",
+                type="password",
+                help="Get your key at https://aistudio.google.com/apikey",
+            )
+        else:
+            purl, pmodel = KNOWN_PROVIDERS[chosen]
+            llm_cfg["provider"] = "openai_compatible"
+            url_val = purl if chosen != "Custom" else ""
+            model_val = pmodel if chosen != "Custom" else ""
             llm_cfg["base_url"] = lcol2.text_input(
                 "Base URL",
-                cfg_llm.get("base_url") or "https://api.x.ai/v1",
-                placeholder="https://api.x.ai/v1",
+                url_val,
+                placeholder="https://api.openai.com/v1",
+                help="The API endpoint. Examples: xAI https://api.x.ai/v1 · Groq https://api.groq.com/openai/v1 · Ollama http://localhost:11434/v1",
             )
-        key = lcol2.text_input(
-            "API key",
-            type="password",
-            help="Used only for this run, kept in memory. Never saved to disk. "
-                 "You must enter your own key — the app does not provide one.",
-        )
+            llm_cfg["model"] = lcol1.text_input("Model", model_val,
+                                                 placeholder="e.g. grok-4.3, gpt-4o-mini, llama-3.3-70b")
+            key = lcol2.text_input(
+                "API key",
+                type="password",
+                help="Used only for this run, kept in memory. Never saved to disk. "
+                     "You must enter your own key — the app does not provide one.",
+            )
         llm_cfg["api_key"] = key
+
         if mode == "jev":
-            jev_key = lcol2.text_input(
+            jev_key = lcol3.text_input(
                 "Jev API key (TypeSafe)",
                 type="password",
-                help="Used only for this run. Required for Jev judge mode.",
+                help="Required for Jev mode. Get your key at https://typesafe.ai",
                 placeholder="Enter your Jev API key",
             )
             llm_cfg["jev_key"] = jev_key
