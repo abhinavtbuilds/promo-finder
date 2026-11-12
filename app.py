@@ -326,7 +326,7 @@ with tab_run:
     if mode in ("llm", "jev"):
         if mode == "jev":
             st.info("🎯 **Jev mode**: uses an LLM for editing + stitching, then Jev (TypeSafe) for the cold-viewer "
-                    "judge. Set `JEV_KEY` environment variable for Jev, plus the LLM API key below.")
+                    "judge. Enter your Jev API key below.")
         st.divider()
         lcol1, lcol2, lcol3 = st.columns(3)
         cfg_llm = base_cfg["llm"]
@@ -356,6 +356,14 @@ with tab_run:
                  "You must enter your own key — the app does not provide one.",
         )
         llm_cfg["api_key"] = key
+        if mode == "jev":
+            jev_key = lcol2.text_input(
+                "Jev API key (TypeSafe)",
+                type="password",
+                help="Used only for this run. Required for Jev judge mode.",
+                placeholder="Enter your Jev API key",
+            )
+            llm_cfg["jev_key"] = jev_key
         llm_cfg["min_interval_s"] = lcol3.number_input(
             "Seconds between calls (free tiers: ~4s)",
             0.0, 30.0, float(base_cfg["llm"]["min_interval_s"]),
@@ -495,17 +503,21 @@ with tab_review:
     # --- Jev rejudge button ---
     has_jev = any(p.get("jev") for p in promos)
     if not has_jev and _HAVE_JEV:
-        jcol1, jcol2 = st.columns([3, 1])
+        jcol1, jcol2, jcol3 = st.columns([1, 2, 1])
+        jev_rejudge_key = jcol1.text_input("Jev key", type="password", label_visibility="collapsed",
+                                            placeholder="Jev API key")
         with jcol2:
             jev_limit = st.number_input("Limit (0=all)", 0, 100, 0, key="jev_limit")
+        with jcol3:
             if st.button("🔁 Re-judge with Jev", type="secondary", use_container_width=True,
-                         help="Requires JEV_KEY env var. Replaces LLM judge scores with Jev probabilities."):
-                import os as _os
-                jk = _os.environ.get("JEV_KEY")
+                         help="Enter a Jev API key. Replaces LLM judge scores with Jev probabilities."):
+                jk = jev_rejudge_key or None
                 if not jk:
-                    st.error("Set JEV_KEY environment variable first.")
+                    st.error("Enter a Jev API key first.")
                 else:
                     with st.spinner("Jev re-judging all promos…"):
+                        import os as _os
+                        _os.environ["JEV_KEY"] = jk
                         try:
                             jev_out = _jev_rejudge(str(run_dir), str(run_dir / ".." / f"{run_dir.name}_jev"),
                                                     str(eps_dir), limit=jev_limit or 0)

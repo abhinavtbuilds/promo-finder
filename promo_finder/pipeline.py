@@ -398,7 +398,7 @@ def run(input_dir: str, out_dir: str, mode: str, config_path: str | None = None,
         if not _HAVE_JEV:
             raise RuntimeError("Jev judge not available. Install requests: pip install requests")
         import os as _os
-        _jev_key = _os.environ.get("JEV_KEY")
+        _jev_key = cfg.get("llm", {}).get("jev_key") or _os.environ.get("JEV_KEY")
         if not _jev_key:
             print("  WARNING: JEV_KEY not set — falling back to rules mode for judging")
             pool = [c for cs in shortlist.values() for c in cs[: cfg["max_promos_per_episode"]]] + stitches
