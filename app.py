@@ -63,6 +63,10 @@ ss.setdefault("batch_verdict_mode", None)
 
 
 def _cleanup_old_run():
+    """Remove the previous run's temp dir to free disk space.
+    Only removes the *current* run_dir/eps_dir, NOT historical runs
+    (those are needed for Compare/Quality/Analytics tabs).
+    """
     for key in ("run_dir", "eps_dir"):
         old = ss.get(key)
         if old:
@@ -124,12 +128,13 @@ def load_run_options(include_current: bool = True) -> dict[str, tuple[Path, Path
     return opts
 
 
-def run_meta_display(meta: dict):
+def run_meta_display(meta: dict, promos: list | None = None):
+    n_promos = len(promos) if promos is not None else meta.get("total_promos", 0)
     parts = [
         f"Mode **{meta['mode']}**",
         f"model `{meta.get('model', 'none')}`",
         f"{meta['episodes']} episodes",
-        f"{meta.get('total_promos', meta.get('promos', 0))} promos",
+        f"{n_promos} promos",
         f"LLM calls {meta.get('llm_calls', 0)}",
         f"tokens {meta.get('tokens_in', 0)}/{meta.get('tokens_out', 0)}",
         f"{meta.get('seconds', 0):.0f}s" if isinstance(meta.get("seconds"), (int, float)) else ""
@@ -380,7 +385,6 @@ with tab_run:
             st.error("✋ Enter an API key, or switch to Rules only mode.")
             st.stop()
 
-        _cleanup_old_run()
         eps_dir = save_uploads(files) if files else ROOT / "data" / "sample"
         n = len(list(eps_dir.glob("*.txt")))
         if not n:
@@ -485,7 +489,7 @@ with tab_review:
     run_dir, eps_dir = run_opts[selected_run]
     meta, promos = load_promos(run_dir)
     checks = load_checks(run_dir)
-    run_meta_display(meta)
+    run_meta_display(meta, promos)
 
     # --- Jev rejudge button ---
     has_jev = any(p.get("jev") for p in promos)
@@ -899,8 +903,8 @@ with tab_quality:
             if not checks:
                 st.warning(f"No `check_report.csv` found in `{qc_dir.name}`. Run `python -m promo_finder.check --run {qc_dir} --input data/episodes` to generate it.")
             else:
-                meta_qc, _ = load_promos(qc_dir)
-                run_meta_display(meta_qc)
+                meta_qc, promos_qc = load_promos(qc_dir)
+                run_meta_display(meta_qc, promos_qc)
 
                 # Summary metrics
                 total = len(checks)
@@ -1064,7 +1068,7 @@ with tab_analytics:
     anal_run = st.selectbox("Select a run to analyse", list(run_opts_an))
     anal_dir, anal_eps_dir = run_opts_an[anal_run]
     meta_an, promos_an = load_promos(anal_dir)
-    run_meta_display(meta_an)
+    run_meta_display(meta_an, promos_an)
 
     if not promos_an:
         st.warning("No promos in this run.")
