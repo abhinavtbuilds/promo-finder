@@ -342,10 +342,14 @@ def write_posting_plan(out: Path, rows: list[dict], meta: dict) -> None:
     held = [r for r in rows[n:] if (r["judge"].get("spoiler") == "high" and min(r["episodes"]) >= late_from)]
     flagged = [r for r in rows[n:] if r["judge"].get("confusing")][:5]
     seg = lambda r: " + ".join(f"Ep {s['episode']} {s['start']}–{s['end']}" for s in r["segments"])
-    def cap(t: str) -> str:  # drop [time] and (tone); a camera/action hook is labelled, not posted as text
+    def cap(t: str) -> str:  # clean the hook text for use as a social-media caption
+        # Drop timestamps and tones
         t = re.sub(r"\s*\[[^\]]*\]\s*|\s*\([^)]*\)", " ", t).replace(" :", ":").replace("  ", " ").strip()
+        # Camera/action/SFX directions → mark as visual hook
         if re.match(r"^(CAMERA|ACTION|SFX|SOUND|VISUAL)\b", t, re.I):
             return "_(visual hook, write a caption)_ " + t.split(":", 1)[-1].strip()[:70]
+        # Strip the speaker label (e.g. "THE FORMER GROOM: I cannot marry you" → "I cannot marry you")
+        t = re.sub(r"^[A-Z][A-Z .'\-]{1,40}?:\s*", "", t)
         return t
     md = [f"# Posting plan — {meta['mode']} mode, {meta['episodes']} episodes", "",
           f"Post these {len(first)} first, in this order: the best promo from each of {len(first)} different episodes, "

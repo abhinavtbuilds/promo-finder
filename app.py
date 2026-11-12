@@ -368,6 +368,10 @@ with tab_run:
     else:
         limit = 0
 
+    # Clear stale run summary when new files are uploaded
+    if files:
+        ss.run_dir = None
+
     st.divider()
     btn_disabled = not (files or use_sample)
     run_clicked = st.button(
@@ -647,6 +651,16 @@ with tab_review:
             st.markdown(f"**{best_judge}**" if best_judge else "")
         with hl[2]:
             pass
+
+        # Preview hook and cliffhanger on the card (no need to open Details)
+        hook_preview = p.get("hook", "")[:120]
+        cliff_preview = p.get("cliffhanger", "")[:120]
+        if hook_preview or cliff_preview:
+            st.markdown(
+                f"<small style='color: #aaa'>🎣 {hook_preview}</small>" +
+                (f"<br><small style='color: #aaa'>⛰ {cliff_preview}</small>" if cliff_preview else ""),
+                unsafe_allow_html=True,
+            )
 
         with st.expander("Details", expanded=False):
             a, b = st.columns([3, 2])
@@ -1190,19 +1204,20 @@ with tab_analytics:
         """)
 
     # --- Top vs Bottom ---
-    st.subheader("🏆 Top 5 vs Bottom 5")
-    sorted_p = sorted(promos_an, key=lambda p: -p["score"])
-    tc1, tc2 = st.columns(2)
-    with tc1:
-        st.markdown("**Top 5 highest-scoring**")
-        for p in sorted_p[:5]:
-            segs = " + ".join(f"Ep {s['episode']} {s['start']}–{s['end']}" for s in p["segments"])
-            st.markdown(f"- **#{p['rank']}** ({p['score']:.3f}) {segs} — {p['hook'][:70]}")
-    with tc2:
-        st.markdown("**Bottom 5 lowest-scoring**")
-        for p in sorted_p[-5:]:
-            segs = " + ".join(f"Ep {s['episode']} {s['start']}–{s['end']}" for s in p["segments"])
-            st.markdown(f"- **#{p['rank']}** ({p['score']:.3f}) {segs} — {p['hook'][:70]}")
+    if len(promos_an) >= 6:
+        st.subheader("🏆 Top 5 vs Bottom 5")
+        sorted_p = sorted(promos_an, key=lambda p: -p["score"])
+        tc1, tc2 = st.columns(2)
+        with tc1:
+            st.markdown("**Top 5 highest-scoring**")
+            for p in sorted_p[:5]:
+                segs = " + ".join(f"Ep {s['episode']} {s['start']}–{s['end']}" for s in p["segments"])
+                st.markdown(f"- **#{p['rank']}** ({p['score']:.3f}) {segs} — {p['hook'][:70]}")
+        with tc2:
+            st.markdown("**Bottom 5 lowest-scoring**")
+            for p in sorted_p[-5:]:
+                segs = " + ".join(f"Ep {s['episode']} {s['start']}–{s['end']}" for s in p["segments"])
+                st.markdown(f"- **#{p['rank']}** ({p['score']:.3f}) {segs} — {p['hook'][:70]}")
 
     # --- Failed promos from check ---
     checks_an = load_checks(anal_dir)
