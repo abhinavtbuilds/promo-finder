@@ -6,9 +6,12 @@ Tab 1 "Run": upload episode screenplays (.txt or a .zip), pick rules-only or an 
 Tab 2 "Review": approve / reject promos; download the verdicts (they become evaluation labels).
 No screenplay is bundled with the app: users upload their own, and uploads live only in a temp folder.
 """
+import atexit
 import csv
 import io
 import json
+import os
+import shutil
 import tempfile
 import zipfile
 from pathlib import Path
@@ -33,6 +36,18 @@ ss.setdefault("eps_dir", None)
 ss.setdefault("verdicts", {})
 
 
+def _cleanup_old_run():
+    for key in ("run_dir", "eps_dir"):
+        old = ss.get(key)
+        if old:
+            p = Path(old)
+            if p and p.name.startswith(("eps_", "run_")):
+                try:
+                    shutil.rmtree(p, ignore_errors=True)
+                except Exception:
+                    pass
+
+
 def save_uploads(files) -> Path:
     d = Path(tempfile.mkdtemp(prefix="eps_"))
     for f in files:
@@ -53,7 +68,7 @@ with tab_run:
     files = st.file_uploader("Episode screenplays (.txt files, or one .zip)", type=["txt", "zip"],
                              accept_multiple_files=True)
     use_sample = st.checkbox("No screenplays handy? Use the built-in sample show (2 invented episodes)",
-                             value=False, disabled=bool(files))
+                             value=True, disabled=bool(files))
     c1, c2 = st.columns(2)
     mode = c1.radio("Mode", ["rules", "llm"], horizontal=True,
                     format_func=lambda m: {"rules": "Rules only (no API, ~20s)",
@@ -71,9 +86,9 @@ with tab_run:
         if provider == "openai_compatible":
             llm_cfg["base_url"] = c2.text_input("Base URL", cfg_llm.get("base_url") or "https://api.x.ai/v1")
         try:
-            secret_key = st.secrets.get("LLM_API_KEY", "")
+            secret_key = st.secrets.get("LLM_KEY", os.environ.get("LLM_KEY", ""))
         except Exception:  # no secrets.toml configured
-            secret_key = ""
+            secret_key = os.environ.get("LLM_KEY", "")
         key = c2.text_input("API key", type="password",
                             help="Used only for this run, kept in memory, never saved." +
                                  (" Leave blank to use the app's key." if secret_key else ""))
@@ -85,6 +100,7 @@ with tab_run:
         if mode == "llm" and not llm_cfg.get("api_key") and "localhost" not in llm_cfg.get("base_url", ""):
             st.error("Enter an API key, or use Rules only.")
             st.stop()
+        _cleanup_old_run()
         eps_dir = save_uploads(files) if files else ROOT / "data" / "sample"
         n = len(list(eps_dir.glob("*.txt")))
         if not n:

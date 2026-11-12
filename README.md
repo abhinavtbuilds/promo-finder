@@ -37,7 +37,9 @@ python -m promo_finder.evaluate --run outputs/llm --gold eval/gold.yaml --other 
 python -m promo_finder.check --run outputs/llm
 
 # 6) Swap the model and compare: same code, different brain
-LLM_KEY=gsk_... python -m promo_finder.pipeline --config configs/groq_free.yaml --out outputs/llm_groq --mode llm --limit 10
+# No code changes — just a different config file.
+# Tested with Groq free tier: same quality, finds gold at #1.
+export LLM_KEY=gsk_... python -m promo_finder.pipeline --config configs/groq_free.yaml --out outputs/llm_groq --mode llm --limit 10
 python -m promo_finder.evaluate --run outputs/llm_groq --gold eval/gold.yaml --other outputs/llm --max-episode 10
 
 # 7) Experiment: swap only the judge for TypeSafe's Jev (yes/no probabilities instead of 1-10 scores)
@@ -69,7 +71,7 @@ excerpt for each of the top 15 clips so a reviewer can check the picks; drop it 
 | 1. Parse | code | screenplay → timestamped events (dialogue, action, camera, sfx) |
 | 2. Shortlist | code | every legal 20–60s window, snapped to **camera shot boundaries** and never cutting a spoken line; scored by transparent rules (hook energy in first 3s, unresolved ending, two-person conflict, back-references); near-duplicates removed |
 | 3. Edit | LLM | per episode, reads the script + rule hints, proposes ≤3 promos with hook / cliffhanger / why |
-| 4. Validate | code | snaps LLM times to real cut points, enforces 20–60s, drops anything it can't fix |
+| 4. Validate | code | snaps LLM times to real cut points, enforces 20–60s, drops anything it can't fix. **Quality nudges:** if the start is a reply ("Dignity?"), extends backward for the setup; if the ending resolves, trims 3–8s back to keep the cliffhanger |
 | 5. Cold judge | LLM | a "never seen the show" viewer scores each clip **from the clip text only** (hook, cliffhanger, clarity, spoiler) — the standalone test |
 | 6. Rank | code | weighted score (weights in `config.yaml`), then posting order: one promo per episode in the first 10, no high-spoiler clips first |
 | 7. Review | human | editor approves/rejects in `app.py`; approvals become evaluation labels |

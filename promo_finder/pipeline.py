@@ -26,6 +26,7 @@ from pathlib import Path
 import yaml
 
 from .candidates import (MAX_LEN, MIN_LEN, Candidate, Segment, cut_points, episode_candidates,
+                         best_unresolved_end, nudge_back_past_reply,
                          score_window, script_text, stitched_candidates)
 from .parse import Episode, fmt, load_show
 
@@ -40,7 +41,12 @@ def to_sec(s: str) -> float | None:
 
 # ------------------------------------------------------------------ validation (code, not AI)
 def snap_window(ep: Episode, start: float, end: float) -> tuple[float, float] | None:
-    """Snap LLM-proposed times to the nearest legal cut points and enforce 20-60s."""
+    """Snap LLM-proposed times to the nearest legal cut points and enforce 20-60s.
+
+    Quality improvements:
+    - If the promo opens on a short reply, try stepping BACK to include the setup line.
+    - If the promo ends after the unresolved moment, try trimming earlier to keep the cliff.
+    """
     starts, ends = cut_points(ep)
     a = min(starts, key=lambda t: abs(t - start))
     legal_ends = [t for t in ends if MIN_LEN <= t - a <= MAX_LEN]
@@ -49,6 +55,17 @@ def snap_window(ep: Episode, start: float, end: float) -> tuple[float, float] | 
     b = min(legal_ends, key=lambda t: abs(t - end))
     if abs(a - start) > 4 or abs(b - end) > 6:   # model's times were far off: don't silently invent a clip
         return None
+
+    # Quality: nudge back past a reply opening
+    nudged = nudge_back_past_reply(ep, a, b)
+    if nudged is not None:
+        a = nudged
+
+    # Quality: trim end to keep the unresolved moment
+    trimmed = best_unresolved_end(ep, a, b)
+    if trimmed is not None:
+        b = trimmed
+
     return a, b
 
 
@@ -172,7 +189,11 @@ def llm_judge(cands: list[Candidate], eps_by_num, client, cache: Cache, batch: i
             f"=== CLIP id={j} ({c.duration:.0f}s; clip starts at {fmt(c.segments[0].start)}) ===\n{clip_script(c, eps_by_num)}"
             for j, c in enumerate(chunk))
         resp = cache.get_or_call(f"judge_{i:04d}", client, system, user)
-        by_id = {str(x.get("id")): x for x in (resp.get("clips", []) if isinstance(resp, dict) else [])}
+        raw = (resp.get("clips", []) if isinstance(resp, dict) else [])
+        by_id = {}
+        for x in raw:
+            if isinstance(x, dict) and "id" in x:
+                by_id[str(x["id"])] = x
         for j, c in enumerate(chunk):
             v = by_id.get(str(j))
             if v:
@@ -330,7 +351,7 @@ def run(input_dir: str, out_dir: str, mode: str, config_path: str | None = None,
     out = Path(out_dir)
     print(f"Parsed {len(eps)} episodes from {input_dir}")
     if not eps:
-        raise SystemExit("No episodes parsed. Expected Kuku's block format (**CAMERA:** / Start: (mm:ss.ss) | End: ...) "
+        raise ValueError("No episodes parsed. Expected Kuku's block format (**CAMERA:** / Start: (mm:ss.ss) | End: ...) "
                          "or plain '[mm:ss] NAME: line' files. See README 'Formats'.")
 
     shortlist = {ep.number: episode_candidates(ep, keep=cfg["shortlist_per_episode"]) for ep in eps}

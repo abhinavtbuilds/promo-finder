@@ -10,8 +10,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from promo_finder import llm, pipeline  # noqa: E402
-from promo_finder.candidates import cut_points, episode_candidates  # noqa: E402
-from promo_finder.parse import load_show  # noqa: E402
+from promo_finder.candidates import (  # noqa: E402
+    SCORE_FLOOR, best_unresolved_end, cut_points, episode_candidates,
+    _caption_text, _cliff_caption, nudge_back_past_reply,
+    score_window, REPLY_LINES,
+)
+from promo_finder.parse import Episode, Event, fmt, load_show  # noqa: E402
 
 DATA = ROOT / "data" / "sample"  # invented show shipped with the repo, so tests run on a clean clone
 
@@ -92,6 +96,91 @@ def test_plain_format_episode(tmp_path):
     assert promos and all(20 <= p["duration_sec"] <= 60 for p in promos)
 
 
+# ------------------------------------------------------------------ quality function tests
+
+
+def test_score_floor_drops_weak_episode(tmp_path):
+    """An episode with no strong windows returns 0 promos."""
+    (tmp_path / "ep99.txt").write_text(
+        "EPISODE NUMBER: Episode 99\n"
+        "EPISODE LOGLINE: A quiet day.\n"
+        "CONTINUITY NOTES: Test only.\n"
+        "--- SCRIPT START ---\n"
+        "SCENE 1\n"
+        "Scene heading: A peaceful room\n"
+        "Scene start: 00:00.00\n"
+        "Scene end: 00:30.00\n"
+        "**CAMERA:**\n"
+        "Start: (00:00.00) | End: (00:10.00)\n"
+        "Slow pan across a fireplace.\n"
+        "**CHARACTER (Calm):**\n"
+        "Start: (00:03.00) | End: (00:05.00)\n"
+        '"It is a pleasant morning."\n'
+        "**CHARACTER (Content):**\n"
+        "Start: (00:08.00) | End: (00:12.00)\n"
+        '"Indeed. The tea is lovely."\n'
+        "**CAMERA:**\n"
+        "Start: (00:10.00) | End: (00:30.00)\n"
+        "Fade out peacefully.\n"
+    )
+    eps = load_show(str(tmp_path))
+    assert len(eps) == 1
+    cands = episode_candidates(eps[0])
+    # All candidates should be below the floor and not returned
+    assert len(cands) == 0, f"expected 0 promos for a calm episode, got {len(cands)}"
+
+
+def test_nudge_back_past_reply():
+    """A promo opening on a short reply should be nudged backward to include setup."""
+    evs = [
+        Event(1, 1, "camera", 5.0, 7.0, "Shot of the door opening."),
+        Event(1, 1, "action", 6.0, 9.0, "Ethan enters."),
+        Event(1, 1, "dialogue", 7.0, 8.5, "Dignity?", speaker="LANA"),
+        Event(1, 1, "dialogue", 10.0, 13.0, "You don't deserve an answer.", speaker="ETHAN"),
+    ]
+    ep = Episode(number=1, logline="", continuity="")
+    ep.events = evs
+    ep.scenes = []
+
+    reply_start = 7.0  # starts on "Dignity?"
+    nudged = nudge_back_past_reply(ep, reply_start, 27.0)
+    # "Dignity?" is a reply; with an earlier event at 6.0s, it should nudge back
+    assert nudged is not None, "should nudge back to include the setup before the reply"
+    assert nudged < reply_start, "nudged start should be earlier than the reply"
+
+
+def test_caption_filters_camera_direction():
+    """_caption_text should prefer dialogue over camera/action lines."""
+    evs = [
+        Event(1, 1, "camera", 0.0, 3.0, "Slow push in on a window."),
+        Event(1, 1, "dialogue", 1.0, 4.0, "Where is my sister?", speaker="MIRA"),
+        Event(1, 1, "action", 4.0, 6.0, "She slams the door."),
+    ]
+    cap = _caption_text(evs)
+    assert "MIRA" in cap, "dialogue should be preferred over camera action"
+    assert "MIRA: Where is my sister?" in cap
+
+
+def test_cliff_caption_filters_cut_to_black():
+    """_cliff_caption should skip 'cut to black' and prefer the last dialogue."""
+    evs = [
+        Event(1, 1, "dialogue", 10.0, 12.0, "You will never find him.", speaker="DORIAN"),
+        Event(1, 1, "camera", 12.0, 14.0, "Cut to black."),
+    ]
+    cap = _cliff_caption(evs)
+    assert "DORIAN" in cap
+    assert "cut to black" not in cap.lower()
+
+
+def test_reply_line_pattern():
+    """REPLY_LINES matches short replies."""
+    assert REPLY_LINES.match("Yes")
+    assert REPLY_LINES.match("Dignity?")
+    assert REPLY_LINES.match("No.")
+    assert REPLY_LINES.match("Careful")
+    assert not REPLY_LINES.match("I will never forgive you")
+
+
 if __name__ == "__main__":
     import tempfile
     test_parser_invariants()
@@ -100,4 +189,10 @@ if __name__ == "__main__":
         test_llm_path_with_fake_model(Path(d))
     with tempfile.TemporaryDirectory() as d:
         test_plain_format_episode(Path(d))
+    with tempfile.TemporaryDirectory() as d:
+        test_score_floor_drops_weak_episode(Path(d))
+    test_nudge_back_past_reply()
+    test_caption_filters_camera_direction()
+    test_cliff_caption_filters_cut_to_black()
+    test_reply_line_pattern()
     print("all tests passed")

@@ -20,6 +20,8 @@ judge_batch: 6
 post_first_n: 10
 report_top: 15
 
+spoiler_only_after_fraction: 0.5   # episodes >= this fraction x last_ep are checked for late-series spoilers
+
 # --- ranking weights (cold-viewer scores, 1-10) ---
 weights:
   hook: 0.40

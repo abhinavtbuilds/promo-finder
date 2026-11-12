@@ -109,6 +109,17 @@ def script_text(ep: Episode, a: float, b: float) -> str:
 
 
 # --- scoring -------------------------------------------------------------------------
+def _caption_text(events: list[Event]) -> str:
+    """Return a usable caption: prefer dialogue, skip camera/action directions."""
+    for e in events:
+        if e.kind == "dialogue":
+            return e.line()
+    for e in events:
+        if e.kind in ("sfx", "action") and not re.match(r"cut to black|freeze", e.text, re.I):
+            return e.line()
+    return events[-1].line() if events else ""
+
+
 def score_hook(ep: Episode, a: float) -> tuple[float, str]:
     # only events that *begin* inside the first 3s (a line already mid-way doesn't hook)
     evs = [e for e in events_in(ep, a, a + HOOK_SECS) if a - 0.3 <= e.start < a + HOOK_SECS]
@@ -122,8 +133,18 @@ def score_hook(ep: Episode, a: float) -> tuple[float, str]:
             s -= 0.8  # reply to a question we never heard
     if any(re.search(ESTABLISHING, e.text, re.I) for e in evs):
         s -= 0.8
-    best = max(evs, key=intensity)
-    return s, (first_line or best).line()
+    return s, _caption_text(evs)
+
+
+def _cliff_caption(evs: list[Event]) -> str:
+    """Best cliffhanger caption: last dialogue line, or last non-camera event."""
+    for e in reversed(evs):
+        if e.kind == "dialogue":
+            return e.line()
+    for e in reversed(evs):
+        if not re.match(r"cut to black|freeze", e.text, re.I):
+            return e.line()
+    return evs[-1].line() if evs else ""
 
 
 def score_cliff(ep: Episode, b: float) -> tuple[float, str]:
@@ -144,8 +165,7 @@ def score_cliff(ep: Episode, b: float) -> tuple[float, str]:
     s -= 0.4 * min(_count(RESOLVED_CUES, text), 3)
     if abs(b - ep.duration) < 0.5:
         s += 0.5  # writers design episode endings as cliffhangers
-    anchor = last_line or evs[-1]
-    return s, anchor.line()
+    return s, _cliff_caption(evs)
 
 
 def score_standalone(ep: Episode, a: float, b: float) -> tuple[float, list[str]]:
@@ -184,6 +204,51 @@ def score_window(ep: Episode, a: float, b: float) -> Candidate:
     )
 
 
+REPLY_LINES = re.compile(
+    r"^(yes|no|i am|it is|so were you|not yet|dignity\??|what\??|who\??|why\??|oh|ah|right|fine|okay|careful)\W*$",
+    re.I,
+)
+
+
+def best_unresolved_end(ep: Episode, a: float, b: float, max_trim: float = 8.0) -> float | None:
+    """Try earlier cut points near *b* that score higher on the cliff.
+
+    A promo that continues past the unresolved moment (e.g. the rescue succeeds)
+    loses the cliffhanger.  This looks back up to *max_trim* seconds for an end
+    whose cliff score is better, preferring the *sharpest* unresolved moment.
+    Returns the new end, or *b* if none is better.
+    """
+    _, ends = cut_points(ep)
+    tail = b - 3.0  # the very last moment may be the best; only trim if clearly better
+    candidates = [t for t in ends if a + MIN_LEN <= t < b and t >= b - max_trim]
+    best, best_score = b, score_cliff(ep, b)[0]
+    for t in reversed(candidates):
+        if t > tail:  # within ~3s of original: no meaningful improvement
+            continue
+        sc = score_cliff(ep, t)[0]
+        if sc > best_score + 0.5:  # meaningfully better
+            best, best_score = t, sc
+            break
+    return best if best < b else None
+
+
+def nudge_back_past_reply(ep: Episode, a: float, b: float) -> float | None:
+    """If a promo opens on a short reply, try extending backward to include the setup line."""
+    first_evs = [e for e in events_in(ep, a, a + 4.0) if a - 0.3 <= e.start < a + 4.0]
+    first_line = next((e for e in first_evs if e.kind == "dialogue"), None)
+    if not first_line or not REPLY_LINES.match(first_line.text):
+        return None  # not a reply: nothing to fix
+    starts, _ = cut_points(ep)
+    # look for the nearest earlier cut point
+    earlier = [t for t in starts if t < a and b - t <= MAX_LEN]
+    if not earlier:
+        return None
+    best_earlier = max(earlier)  # closest earlier start
+    if a - best_earlier < 1.0:
+        return None  # too small a nudge; the reply IS the start
+    return best_earlier
+
+
 def _overlap(x: Candidate, y: Candidate) -> float:
     tot = 0.0
     for s in x.segments:
@@ -204,9 +269,13 @@ def nms(cands: list[Candidate], max_overlap: float = 0.4, keep: int = 5) -> list
     return out
 
 
+SCORE_FLOOR = 1.5  # episodes below this return 0 promos (avoids forcing clips from calm episodes)
+
+
 def episode_candidates(ep: Episode, keep: int = 5) -> list[Candidate]:
     starts, ends = cut_points(ep)
     cands = [score_window(ep, a, b) for a in starts for b in ends if MIN_LEN <= b - a <= MAX_LEN]
+    cands = [c for c in cands if c.rule_score >= SCORE_FLOOR]
     return nms(cands, keep=keep)
 
 

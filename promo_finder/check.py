@@ -101,8 +101,15 @@ def check_run(run_dir: str, input_dir: str) -> list[dict]:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--run", required=True)
-    ap.add_argument("--input", default="data/episodes")
+    ap.add_argument("--input", default="")
     a = ap.parse_args()
+    if not a.input:
+        print("ERROR: --input is required (path to the episode screenplays folder). "
+              "Example: --input data/episodes")
+        return
+    if not Path(a.input).is_dir():
+        print(f"ERROR: --input '{a.input}' is not a directory or does not exist.")
+        return
     rows = check_run(a.run, a.input)
     out = Path(a.run) / "check_report.csv"
     if not rows:
