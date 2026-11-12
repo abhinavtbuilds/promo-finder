@@ -30,6 +30,7 @@ import yaml
 
 from promo_finder.candidates import script_text
 from promo_finder.parse import load_show
+from promo_finder.check import check_run as _check_run
 from promo_finder.pipeline import run
 
 # Jev rejudge (best-effort import)
@@ -740,20 +741,35 @@ with tab_review:
     # --- Download verdicts ---
     if ss.verdicts:
         st.divider()
-        vcol1, vcol2, vcol3 = st.columns([1, 1, 3])
+        vcol1, vcol2, vcol3, vcol4 = st.columns([1, 1, 2, 2])
         approved = sum(1 for v in ss.verdicts.values() if v.get("verdict") == "approve")
         rejected = sum(1 for v in ss.verdicts.values() if v.get("verdict") == "reject")
         vcol1.metric("✅ Approved", approved)
         vcol2.metric("❌ Rejected", rejected)
+        # All verdicts CSV
         buf = io.StringIO()
         w = csv.writer(buf)
         w.writerow(["rank", "segments", "verdict", "comment"])
         for r, v in sorted(ss.verdicts.items()):
             w.writerow([r, v["segments"], v["verdict"], v["comment"]])
         vcol3.download_button(
-            f"📥 Download {len(ss.verdicts)} editor verdicts (CSV)", buf.getvalue(), "decisions.csv",
+            f"📥 All verdicts ({len(ss.verdicts)})", buf.getvalue(), "decisions.csv",
             use_container_width=True,
         )
+        # Approved-only promos
+        approved_ranks = {r for r, v in ss.verdicts.items() if v.get("verdict") == "approve"}
+        approved_promos = [p for p in promos if p["rank"] in approved_ranks]
+        if approved_promos:
+            approved_buf = io.StringIO()
+            w2 = csv.writer(approved_buf)
+            w2.writerow(["rank", "segments", "duration_sec", "hook", "cliffhanger", "why"])
+            for p in approved_promos:
+                segs = " + ".join(f"Ep{s['episode']} {s['start']}-{s['end']}" for s in p["segments"])
+                w2.writerow([p["rank"], segs, p["duration_sec"], p["hook"], p["cliffhanger"], p["why"]])
+            vcol4.download_button(
+                f"✅ Approved promos ({len(approved_promos)})", approved_buf.getvalue(), "approved_promos.csv",
+                use_container_width=True,
+            )
 
 # ===================================================================
 # TAB 3 — Compare
@@ -911,7 +927,23 @@ with tab_quality:
             qc_dir, _ = run_opts_qc[qc_run]
             checks = load_checks(qc_dir)
             if not checks:
-                st.warning(f"No `check_report.csv` found in `{qc_dir.name}`. Run `python -m promo_finder.check --run {qc_dir} --input data/episodes` to generate it.")
+                st.warning(f"No `check_report.csv` found in `{qc_dir.name}`. The episode files are needed to verify timestamps.")
+                if st.button("⚡ Generate check report", key="gen_check", type="primary", use_container_width=True):
+                    _, eps_dir = run_opts_qc.get(qc_run, (None, None))
+                    if eps_dir and eps_dir.exists():
+                        try:
+                            rows = _check_run(str(qc_dir), str(eps_dir))
+                            import csv as _csv
+                            with open(qc_dir / "check_report.csv", "w", newline="") as _f:
+                                w = _csv.DictWriter(_f, fieldnames=list(rows[0]))
+                                w.writeheader()
+                                w.writerows(rows)
+                            st.success(f"✅ Generated check report for {len(rows)} promos. Refresh to see results.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed: {e}")
+                    else:
+                        st.error("Episode data not available for this run. The session may have expired.")
             else:
                 meta_qc, promos_qc = load_promos(qc_dir)
                 run_meta_display(meta_qc, promos_qc)
