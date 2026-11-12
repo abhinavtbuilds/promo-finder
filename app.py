@@ -14,10 +14,12 @@ Tabs:
 """
 from __future__ import annotations
 
+import atexit
 import csv
 import io
 import json
 import os
+import shutil
 import tempfile
 import zipfile
 from collections import Counter
@@ -58,6 +60,18 @@ ss.setdefault("eps_dir", None)
 ss.setdefault("verdicts", {})
 ss.setdefault("run_history", {})
 ss.setdefault("batch_verdict_mode", None)
+
+
+def _cleanup_old_run():
+    for key in ("run_dir", "eps_dir"):
+        old = ss.get(key)
+        if old:
+            p = Path(old)
+            if p and p.name.startswith(("eps_", "run_")):
+                try:
+                    shutil.rmtree(p, ignore_errors=True)
+                except Exception:
+                    pass
 
 
 # ---------------------------------------------------------------------------
@@ -279,7 +293,7 @@ with tab_run:
         )
         use_sample = st.checkbox(
             "Use the built-in sample show (2 invented episodes)",
-            value=False,
+            value=True,
             disabled=bool(files),
             help="No upload needed — runs on built-in sample data so you can try the tool immediately",
         )
@@ -330,7 +344,7 @@ with tab_run:
                 placeholder="https://api.x.ai/v1",
             )
         try:
-            secret_key = st.secrets.get("LLM_API_KEY", "")
+            secret_key = st.secrets.get("LLM_KEY", os.environ.get("LLM_KEY", ""))
         except Exception:
             secret_key = ""
         key = lcol2.text_input(
@@ -366,6 +380,7 @@ with tab_run:
             st.error("✋ Enter an API key, or switch to Rules only mode.")
             st.stop()
 
+        _cleanup_old_run()
         eps_dir = save_uploads(files) if files else ROOT / "data" / "sample"
         n = len(list(eps_dir.glob("*.txt")))
         if not n:

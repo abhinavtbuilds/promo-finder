@@ -29,7 +29,7 @@ BACKREF = r"\b(again|last time|still|after what|as before|remember|told you|the 
 TROPES = r"abandon|humiliat|disown|betray|plain|unworthy|beneath|divorce|marry|wedding|bride|proposal|accept my hand|one knee|pregnan|poison|witch|execut|chains|dungeon|duke|duchess|heir|the real|you're the|who are you|disguise|framed|liar|traitor|slave|maid|beggar|penniless"
 ESTABLISHING = r"establishing shot|wide shot of the (?:manor|cottage|estate)|exterior shot|tilting up toward"
 # Expanded list of reply-like utterances: 1-3 word replies that make no sense cut off from context
-REPLY_LINES = r"^(yes|no|okay|sure|fine|right|indeed|never|maybe|perhaps|i am|it is|it's me|that's him|she is|he is|so was i|so were you|not yet|not now|of course|of course not|absolutely|never mind|my lady|your grace|sir|milady|madam|this house|that man|that woman|dignity|loyalty|honor|quiet|silence|no\.{3}|yes\.{3})$"
+
 
 
 def _count(pattern: str, text: str) -> int:
@@ -133,7 +133,7 @@ def score_hook(ep: Episode, a: float) -> tuple[float, str]:
     first_line = next((e for e in evs if e.kind == "dialogue"), None)
     if first_line:
         s += 0.3  # someone speaks in the first 3s: viewers stop for faces + words
-        if re.match(REPLY_LINES, first_line.text.strip(), re.I):
+        if REPLY_LINES.match(first_line.text.strip()):
             s -= 1.0  # reply to a question we never heard — viewer is lost
         # Check if the line trails in (ellipsis start) — it's mid-conversation
         if first_line.text.strip().startswith(("...", "…")):

@@ -26,7 +26,8 @@ from pathlib import Path
 import yaml
 
 from .candidates import (MAX_LEN, MIN_LEN, REPLY_LINES, Candidate, Segment, cut_points,
-                         episode_candidates, score_window, script_text, stitched_candidates)
+                         best_unresolved_end, episode_candidates, score_window,
+                         script_text, stitched_candidates)
 from .parse import Episode, fmt, load_show
 
 # Import Jev support — best-effort; JEV_KEY env var is checked at runtime
@@ -52,7 +53,7 @@ def _first_line_is_reply(ep: Episode, t: float) -> bool:
     first = next((e for e in ep.events if e.kind == "dialogue" and e.start >= t - 0.3), None)
     if first and first.start < t + 2.0:
         text = first.text.strip()
-        if re.match(REPLY_LINES, text, re.I):
+        if REPLY_LINES.match(text):
             return True
         if text.startswith(("...", "…")):
             return True
@@ -62,21 +63,25 @@ def _first_line_is_reply(ep: Episode, t: float) -> bool:
 def snap_window(ep: Episode, start: float, end: float) -> tuple[float, float] | None:
     """Snap LLM-proposed times to the nearest legal cut points and enforce 20-60s.
 
-    After snapping to a shot boundary, also check whether the first dialogue line
-    at that start point is a short reply (a sign we cut off the setup). If so, try
-    to nudge forward to the next valid start point.
+    Quality nudges (applied after snapping):
+    - Reply opening: try BACK first (include setup if length allows), else FORWARD.
+    - Resolved ending: trim 3-8s back to keep the cliffhanger.
     """
     starts, ends = cut_points(ep)
     a = min(starts, key=lambda t: abs(t - start))
 
-    # --- Reply-avoidance nudging ---
-    # If the snapped start lands on a reply line, try the next valid start point
+    # --- Reply-avoidance: nudge BACK to include setup ---
     if _first_line_is_reply(ep, a):
-        candidates = sorted([s for s in starts if s > a + 2.0])
-        for nudge_a in candidates:
-            if MIN_LEN <= end - nudge_a <= MAX_LEN:
-                a = nudge_a
-                break
+        earlier = sorted([s for s in starts if s < a and end - s <= MAX_LEN])
+        if earlier:
+            a = earlier[-1]  # closest earlier start
+        else:
+            # fallback: nudge FORWARD to next valid start
+            forward = sorted([s for s in starts if s > a + 2.0])
+            for nudge_a in forward:
+                if MIN_LEN <= end - nudge_a <= MAX_LEN:
+                    a = nudge_a
+                    break
 
     legal_ends = [t for t in ends if MIN_LEN <= t - a <= MAX_LEN]
     if not legal_ends:
@@ -84,6 +89,12 @@ def snap_window(ep: Episode, start: float, end: float) -> tuple[float, float] | 
     b = min(legal_ends, key=lambda t: abs(t - end))
     if abs(a - start) > 4 or abs(b - end) > 6:   # model's times were far off: don't silently invent a clip
         return None
+
+    # --- Quality: trim end to keep the unresolved moment ---
+    trimmed = best_unresolved_end(ep, a, b)
+    if trimmed is not None:
+        b = trimmed
+
     return a, b
 
 
@@ -207,7 +218,11 @@ def llm_judge(cands: list[Candidate], eps_by_num, client, cache: Cache, batch: i
             f"=== CLIP id={j} ({c.duration:.0f}s; clip starts at {fmt(c.segments[0].start)}) ===\n{clip_script(c, eps_by_num)}"
             for j, c in enumerate(chunk))
         resp = cache.get_or_call(f"judge_{i:04d}", client, system, user)
-        by_id = {str(x.get("id")): x for x in (resp.get("clips", []) if isinstance(resp, dict) else [])}
+        raw = (resp.get("clips", []) if isinstance(resp, dict) else [])
+        by_id = {}
+        for x in raw:
+            if isinstance(x, dict) and "id" in x:
+                by_id[str(x["id"])] = x
         for j, c in enumerate(chunk):
             v = by_id.get(str(j))
             if v:
