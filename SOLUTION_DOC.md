@@ -1,156 +1,56 @@
-# Promo Finder — Solution Document
-**Abhinav Tanwar** · Kuku AI Generalist Assignment · Problem 1: Find the Promos · Nov 2026
+# Promo Finder: microdrama promos
 
----
+**Abhinav Tanwar** · Kuku AI Generalist assignment · Problem 1 · November 2026
 
-## Problem choice and framing
+**Links:** [GitHub repo](https://github.com/abhinavtbuilds/promo-finder) · [Live app](https://kuku-promo--finder.streamlit.app/) · [Raw outputs (50 episodes)](https://drive.google.com/drive/folders/1k67IdhI-A9Mimrac1m61BegYbZPQW2q7)
 
-**Why Problem 1.** It's the most concrete of the three problems — a real, daily task at Kuku
-that an editor faces for every show. Solving it with a mix of code and AI felt like the best
-demonstration of the skills the role requires: breaking down an editorial judgment into
-verifiable pieces, building something practical, and knowing when to use AI vs deterministic
-rules.
+## Why this problem
 
-**Scope.** The tool reads a folder of timestamped screenplay files and produces a ranked list
-of 20–60 second promo clips, each with hook, cliffhanger and a one-line rationale.
+I chose Problem 1 because it asks for a concrete, checkable output — ranked promos with timestamps — rather than a design doc or an analysis. "Find the promos" forces a clear definition of what makes a good clip, and every pick can be verified against the script. Problems 2 and 3 required more speculative work (content strategy, user research) that is harder to validate in a 48-hour window.
 
-**Key assumptions (where the brief was silent):**
-- **Promo = hook + cliffhanger + standalone.** A clip that opens with a stop-scrolling moment
-  (≤3s), ends unresolved, and makes sense to a first-time viewer. This is the core editorial
-  heuristic; different editors may weigh these differently.
-- **20–60 second hard boundary.** Every platform (Instagram Reels, TikTok, YouTube Shorts)
-  works in this range. Clips shorter than 20s don't give enough context; longer than 60s lose
-  retention.
-- **Camera-shot boundaries as cut points.** The tool snaps all times to real shot/event
-  boundaries so an editor can cut exactly there. Cutting mid-line is never allowed.
-- **Cross-episode promos are valid.** Joining a moment from episode N with a later moment
-  from episode N/M is allowed and scored, with a penalty for the jump cut.
-- **Spoilers from late episodes should be held back.** The first posting batch (typically 10
-  promos) excludes clips from the back half of the show that reveal major twists.
+Today an editor watches every episode to find promo moments, while Kuku ships new shows weekly. That doesn't scale. Promo Finder reads a show's timestamped scripts and returns ranked 20–60s promos (episode, start/end of each segment, hook, cliffhanger, why) plus a posting plan: what to post first, what to hold back.
 
-**Tools used.** This README was written with AI assistance (Claude). The code was written
-with AI assistance (Claude + in-house frameworks where noted). Prompts for the LLM
-stages were iterated by hand.
+## What I assumed
 
----
+Script time is screen time, and cuts land on camera changes, never mid-line. "Makes sense on its own" = someone who sees only the clip can say who wants what. A spoiler is a reveal from the show's second half; early setup is what promos sell. Cross-episode promos join one opening to one later ending, in story order.
 
-## Approach and scale
+## How it works: code for rules, AI for taste, a person decides
 
-### What's code (deterministic, zero API cost)
+1. **Code** lists every legal 20–60s window, scores by transparent rules (hook energy, unresolved ending, two-person conflict), keeps the 5 strongest per episode.
+2. **AI ("editor")** picks up to 3 per episode with hook, cliffhanger and reason, and suggests cross-episode joins.
+3. **Code** snaps every time to a real cut point. If the snapped start lands on a short reply ("Dignity?", "This house…"), it extends backward to include the setup line. If the end resolves rather than cliffhanging, it trims 3–8s back to find the unresolved moment. Enforces 20–60s and order, removes duplicates. The AI never sets a timestamp.
+4. **AI ("cold viewer")** scores each clip from its text alone: the stranger test. Updated prompts penalise reply openings, resolved action endings, and named-character dependence.
+5. **Code** ranks and writes the posting plan. Spoiler rules live here: the AI can't tell setup from twist.
+6. **A person** approves or rejects each pick in the app.
 
-| Stage | What it does | Lines |
-|---|---|---|
-| Screenplay parser (`parse.py`) | Converts Kuku's block format and plain `[mm:ss]` format into timestamped events | 215 |
-| Candidate generator (`candidates.py`) | All legal 20–60s windows snapped to shot boundaries, with transparent rule-based scoring | 257 |
-| Non-max suppression | Drops near-duplicate windows (>40% overlap) | 15 |
-| Validation (`snap_window`) | Snaps LLM proposals to real cut points, enforces 20–60s, drops invalid | 30 |
-| Ranking + posting order | Blended score → greedy one-per-episode with spoiler holdback | 50 |
-| Deterministic checks (`check.py`) | 6 pass/fail + 4 warnings per promo (duration, order, timestamps, mid-line cuts, hook-in-3s, duplicates) | 126 |
-| Gold evaluation (`evaluate.py`) | Precision/recall against hand-labelled promos | 80 |
+## Scale and cost
 
-### What's AI (replaceable, model-agnostic)
+One show: ~292k input tokens, ~21k output tokens, 78 LLM calls, ~17 minutes, under $1 on Grok 4.3 (rate-limited by the free API tier; a paid tier would be faster). Rules mode costs $0 and runs in ~22s. Fifty shows a week: $20–40, run in parallel; the editor watches 5 minutes of picks per show instead of 100 minutes. Model and key are one line of config.
 
-| Stage | Prompt | What the LLM does | Cost driver |
-|---|---|---|---|
-| Editor | `prompts/editor.md` | Reads a screenplay + rule hints, proposes ≤3 promos with hook/cliffhanger/why | Input tokens (the screenplay) |
-| Stitcher | `prompts/stitcher.md` | Proposes two-part cross-episode promos from single-episode picks | Small prompt + clip metadata |
-| Cold viewer | `prompts/cold_viewer.md` | Scores each clip as a first-time viewer (hook, cliffhanger, clarity, spoiler) | Output tokens (per-clip scoring) |
+**Model swap test (no code changes):** I ran the same pipeline on episodes 1–10 with `openai/gpt-oss-120b` on Groq's free tier (65s rate limit). Different model, different picks, same quality. 22 promos (vs 17 on Grok), precision@5 0.2 and recall@5 1.0 against the gold label — identical to the Grok run. The gold promo ranked #1 (vs #4 on Grok). Plug in any OpenAI-compatible or Gemini model by editing config.yaml only.
 
-**Model-agnostic design.** Swapping the model = editing `config.yaml`. Ready-made configs
-for Groq (free), Gemini (free), OpenRouter, and local Ollama are in `configs/`. The code
-never changes.
+The free tier's 65s rate limit means about one episode per minute — fine for a demo, too slow for 50 shows. Paid budget is best spent on the judge — Jev (TypeSafe's decision model, yes/no probabilities) improved precision@5 from 0.4 to 0.6 for $0.01.
 
-**Jev judge experiment.** A separate integration (`jev_rejudge.py`) replaces the LLM
-cold-viewer with TypeSafe's Jev decision model, which answers yes/no questions with
-probabilities instead of 1-10 scores. This is closer to how an editor actually decides.
+## How I know it's good, and where it fails
 
-### Where the human stays in the loop
+**Automatic checks:** all 96 final promos pass length, order, real timestamps and no mid-line cuts. 6 reply openings flagged for review, 1 mid-sentence cut, 1 hook text outside the clip window. No hard failures. After code-level fixes (end-trim search for resolved endings, reply-start backward nudge), three known bad clips from the spot check were demoted or removed: Ep18 (resolved ending, #6→#29), Ep2 (reply opening "Dignity?", #7→dropped from top 96), Ep22 (weak ceiling hook, #9→#58).
 
-1. The **Review tab** lets an editor approve or reject each promo. Verdicts are exported as
-   CSV and become evaluation labels.
-2. The **posting plan** separates promos into "post first" and "hold back" lists.
-3. The **Quality tab** surfaces deterministic check failures and failure patterns so the
-   editor knows what to watch for.
+**Gold set vs LLM (n=6, single labeller):** precision@10 = 0.2, recall@10 = 0.33, recall@20 = 0.5. Gold ranks: Ep1 at #31, Ep11 at #18, Ep13 at #8, Ep24 at #82, Ep32 at #7, Ep41 at #65. The gold set was hand-verified from the same show the tool was tuned on (transparently: the rule lexicon and judge prompt were adjusted after the first failures were found).
 
-### Cost at real-world volume (50 episodes per show)
+**Gold set vs Jev (TypeSafe decision model):** Re-judged all 100 clips with yes/no probabilities. precision@5 rose to 0.6 (+50%), recall@5 to 0.5 (+52%). Jev correctly demoted three of the four known bad picks: Ep18 ended resolved (unresolved=11%, #6→#94), Ep22 opened on a ceiling (hook=14%, #9→#95), Ep2 opened on a reply (hook=25%, #7→#82). It promoted Ep24's riding-crop scene from #72 to #2 (hook=97%, unresolved=97%, clear=85%). 49 seconds, under a cent.
 
-| Mode | Cost | Time | Notes |
-|---|---|---|---|
-| Rules only | **$0** | ~25s | No API calls. Runs on any machine. |
-| Gemini 2.5 Flash | ~$0.01–0.02 | ~3 min | Free tier sufficient for the assignment |
-| Grok 4.3 | ~$0.10–0.15 | ~1 min | Used for the main LLM run |
-| Jev judge (replacing cold viewer) | ~$0.05 | ~1 min | Per-clip judge swap |
+**My read of the top 10 (manual script check):** 4 of 10 pass every test (hook ≤3s 7/10, unresolved ending 7/10, clear to a stranger 6/10). The 6 failures come from 4 patterns: opening on a reply, resolved ending, weak hook timing, named-character dependence. Jev fixes 3 of 4; spoiler leniency (the 4th) needs an editor-provided list of key reveals, which the judge prompt cannot infer alone.
 
-At scale (e.g. 500 episodes/week across 10 shows): rules mode is free; LLM mode on Gemini
-Flash would cost ~$0.02/show → $0.20/week for all shows.
+**Key failures:** Ep 36's promo ends on the series' big twist, rated only a "medium" spoiler (Ep 42's reveal: "low") — spoilers are my weakest check. Ep 2 opens on "Dignity?", a reply to a line it cuts (now flagged + Jev penalises it). Ep 18 ends after the escape succeeds (Jev now catches: unresolved=11%). Ep 22 opens on a ceiling shot (Jev now catches: hook=14%).
 
----
+**Team metric I'd track:** share of top-10 picks an editor approves unchanged. Today (manual spot check): 4 in 10. With Jev as the judge: likely 6–7 in 10 (needs a second manual read to confirm; Jev's precision@5 of 0.6 versus 0.4 for the LLM judge is the quantitative signal so far).
 
-## Quality checking (three layers)
+## How I used AI, and where it got it wrong
 
-### 1. Deterministic checks (`check.py`)
+Claude wrote most of the code and helped draft this doc; I set the design, reviewed every pick in the gold set and spot check, and caught the errors. Two mistakes I fixed: a config edit Claude gave me deleted half of config.yaml, and its first cache saved full prompts (the screenplay text) — now it keeps only a fingerprint hash so `raw_llm/` is safe to share.
 
-Each promo is checked against 6 pass/fail criteria. **LLM run: 97/100 pass all 6.**
+**Limits:** scripts only, no footage. The rule lexicon is tuned on this period drama; a different genre may need retuning. The gold set is small (n=6) and single-labelled. The judge and editor are the same LLM (Grok 4.3), so their errors are correlated.
 
-- `duration_ok`: 100/100
-- `order_ok`: 100/100
-- `timestamps_ok`: 100/100
-- `no_midline_cut`: 100/100
-- `hook_event_3s`: 97/100
-- `not_duplicate`: 100/100
+## Confidentiality
 
-### 2. Gold evaluation (`evaluate.py`)
-
-6 hand-labelled promos were verified against the screenplay. **LLM run: 67% recall@20**
-(4 of 6 gold promos found in the top 20).
-
-After **Jev re-judging**: **precision@5 rose from 0.4 → 0.6**, recall@5 from 0.33 → 0.5.
-Jev correctly demoted promos with reply openings and resolved endings, and promoted
-strong clips that were buried.
-
-### 3. Human spot check
-
-Of the top 10 promos, only 4 pass all three promo quality criteria when read against the
-screenplay. This is the honest number — and it identifies the 4 failure patterns that the
-next iteration should fix.
-
----
-
-## Honest failures
-
-A manual spot-check of the top 10 promos revealed 4 failure patterns:
-
-1. **Opens one line too late.** The first dialogue is a short reply ("Dignity?", "This house...")
-   to a line cut off. *Fix: already flagged by `warn_opens_on_reply`; Jev also catches it.*
-2. **Spoiler judgment too lenient.** The cold viewer doesn't know which reveals are the
-   show's main twists. *Fix: give it a short list of key reveals to check against.*
-3. **Ending resolves the problem.** The rescue/escape completes on screen. *Fix: trim
-   back to the last unresolved beat — Jev catches this (unresolved=11%).*
-4. **Depends on named characters.** The cliffhanger references "Gerald Harrington" — a
-   stranger has no context. *Fix: Jev correctly gives this a low clarity score.*
-
-The deterministic checker catches structural issues well. The LLM/Jev judge catches
-editorial issues sometimes. A human editor is still essential — but the tool reduces 50
-episodes to ~15 promos that need their attention.
-
----
-
-## The prototype
-
-The Streamlit app (`app.py`) provides 6 tabs:
-
-- **About** — problem framing, assumptions, AI/code split, scalability
-- **Run** — upload episodes or use sample, pick rules/LLM/Jev mode, run, download results
-- **Review** — browse, filter (score, verdict, episode, source, sort), approve/reject,
-  deterministic check badges, screenplay preview
-- **Compare** — side-by-side run comparison (metrics, overlap, score distribution)
-- **Quality** — deterministic check results, gold evaluation, honest failure patterns
-- **Analytics** — score distribution, judge scores, source mix, spoiler levels, cost estimates
-
-**Deployment:** Streamlit Community Cloud or Hugging Face Spaces (free tier).
-**Raw outputs:** `outputs/` contains 3 runs (rules, LLM, LLM+Jev) on the full 50-episode
-input pack.
-
----
-
-*Built with code + AI assistance. The code is at github.com/abhinavtbuilds/promo-finder.*
+The app is deployed on Streamlit Cloud with no saved runs shown to visitors. Uploaded screenplays live in a temp folder cleaned up when a new run starts. The sample show uses invented episodes. `data/` and `outputs/` are git-ignored and never pushed.
