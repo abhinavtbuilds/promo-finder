@@ -348,17 +348,13 @@ with tab_run:
                 cfg_llm.get("base_url") or "https://api.x.ai/v1",
                 placeholder="https://api.x.ai/v1",
             )
-        try:
-            secret_key = st.secrets.get("LLM_KEY", os.environ.get("LLM_KEY", ""))
-        except Exception:
-            secret_key = ""
         key = lcol2.text_input(
             "API key",
             type="password",
-            help="Used only for this run, kept in memory. Never saved to disk."
-            + (" Leave blank to use the app's pre-configured key." if secret_key else ""),
+            help="Used only for this run, kept in memory. Never saved to disk. "
+                 "You must enter your own key — the app does not provide one.",
         )
-        llm_cfg["api_key"] = key or secret_key
+        llm_cfg["api_key"] = key
         llm_cfg["min_interval_s"] = lcol3.number_input(
             "Seconds between calls (free tiers: ~4s)",
             0.0, 30.0, float(base_cfg["llm"]["min_interval_s"]),
